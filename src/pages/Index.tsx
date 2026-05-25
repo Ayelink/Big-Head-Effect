@@ -189,11 +189,11 @@ const Index = () => {
 
             {/* Buttons */}
             <div className="flex gap-element">
-              <button onClick={() => fileInputRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 py-[20px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
+              <button onClick={() => fileInputRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 h-[32px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
                 <ImagePlus className="w-[18px] h-[18px]" />
                 {t(locale, "uploadBtn")}
               </button>
-              <button onClick={() => cameraInputRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 py-[20px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
+              <button onClick={() => cameraInputRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 h-[32px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
                 <Camera className="w-[18px] h-[18px]" />
                 {t(locale, "cameraBtn")}
               </button>
