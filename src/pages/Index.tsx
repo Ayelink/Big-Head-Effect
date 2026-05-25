@@ -33,6 +33,7 @@ const Index = () => {
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const lastResourcePathRef = useRef<string | null>(null);
   const originalPreviewRef = useRef<string | null>(null);
+  const imageRatioRef = useRef<string>("3:4");
   const {
     previewUrl,
     uploadFile,
@@ -51,7 +52,7 @@ const Index = () => {
       prompt: buildPrompt(scale),
       type: "img_2_img",
       resource_path: resourcePath,
-      ratio: "3:4",
+      ratio: imageRatioRef.current,
       resolution: "1k",
       format: "png"
     });
@@ -79,13 +80,34 @@ const Index = () => {
     setResultImageUrl("");
     setHistoryImages([]);
     setSelectedIndex(0);
+
+    // Detect image aspect ratio
+    const originalUrl = URL.createObjectURL(file);
+    const detectedRatio = await new Promise<string>((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const w = img.naturalWidth;
+        const h = img.naturalHeight;
+        const r = w / h;
+        // Match to closest supported ratio
+        if (r >= 1.6) resolve("16:9");
+        else if (r >= 1.2) resolve("4:3");
+        else if (r >= 0.9) resolve("1:1");
+        else if (r >= 0.7) resolve("3:4");
+        else resolve("9:16");
+      };
+      img.onerror = () => resolve("3:4");
+      img.src = originalUrl;
+    });
+    imageRatioRef.current = detectedRatio;
+
     const resourcePath = await uploadFile(file);
     if (!resourcePath) {
       setAppState("error");
       setErrorMsg(t(locale, "uploadFailed"));
       return;
     }
-    const originalUrl = URL.createObjectURL(file);
+
     originalPreviewRef.current = originalUrl;
     setHistoryImages([{
       url: originalUrl,
@@ -225,16 +247,16 @@ const Index = () => {
 
         {appState === "done" && resultImageUrl && <div className="flex-1 flex flex-col gap-section min-h-0 overflow-y-auto">
             {/* Image area with history */}
-            <div className="flex gap-element flex-1 min-h-0">
+            <div className="flex gap-element flex-1 min-h-0 items-start">
               {/* Left: History thumbnails */}
               <div className="flex-shrink-0 w-14 flex flex-col gap-2 overflow-y-auto">
-                {historyImages.map((item, idx) => <button key={idx} onClick={() => handleSelectHistory(idx)} className={`w-14 h-[74px] flex-shrink-0 overflow-hidden border transition-all ${idx === selectedIndex ? "border-foreground" : "border-border opacity-60"}`}>
+                {historyImages.map((item, idx) => <button key={idx} onClick={() => handleSelectHistory(idx)} className={`w-14 aspect-[3/4] flex-shrink-0 overflow-hidden border transition-all ${idx === selectedIndex ? "border-foreground" : "border-border opacity-60"}`}>
                     <img src={item.url} alt={item.label} crossOrigin="anonymous" className="w-full h-full object-cover" />
                   </button>)}
               </div>
 
               {/* Right: Main preview */}
-              <div className="flex-1 flex items-center justify-center overflow-hidden min-h-0">
+              <div className="flex-1 flex items-start justify-center overflow-hidden min-h-0">
                 <img src={resultImageUrl} alt="result" crossOrigin="anonymous" className="max-w-full max-h-[45vh] object-contain" />
               </div>
             </div>
