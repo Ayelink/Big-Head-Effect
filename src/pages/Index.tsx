@@ -6,6 +6,11 @@ import { Slider } from "@/components/ui/slider";
 
 type AppState = "idle" | "uploading" | "generating" | "done" | "error";
 
+interface HistoryItem {
+  url: string;
+  label: string;
+}
+
 function buildPrompt(scale: number): string {
   const bodyRatio = Math.round((1 - (scale - 1) * 0.15) * 100);
   return `Transform this photo into a "big head small body" caricature effect:
@@ -23,15 +28,18 @@ const Index = () => {
   const [errorMsg, setErrorMsg] = useState("");
   const [resultImageUrl, setResultImageUrl] = useState<string>("");
   const [headScale, setHeadScale] = useState(2.0);
+  const [historyImages, setHistoryImages] = useState<HistoryItem[]>([]);
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const lastResourcePathRef = useRef<string | null>(null);
+  const originalPreviewRef = useRef<string | null>(null);
 
   const { previewUrl, uploadFile, reset: resetUpload } = useResourceUpload();
   const { isLoading, submitAndPoll, clearImages } = useAIImage();
 
-  const generateWithScale = useCallback(async (resourcePath: string, scale: number) => {
+  const generateWithScale = useCallback(async (resourcePath: string, scale: number, isFirst: boolean) => {
     setAppState("generating");
     setResultImageUrl("");
 
@@ -46,7 +54,14 @@ const Index = () => {
     });
 
     if (result && result.length > 0) {
-      setResultImageUrl(result[0].url);
+      const newUrl = result[0].url;
+      setResultImageUrl(newUrl);
+      setHistoryImages((prev) => {
+        const newItem: HistoryItem = { url: newUrl, label: `${scale.toFixed(1)}x` };
+        const next = [...prev, newItem];
+        setSelectedIndex(next.length - 1);
+        return next;
+      });
       setAppState("done");
     } else {
       setAppState("error");
@@ -58,6 +73,8 @@ const Index = () => {
     setAppState("uploading");
     setErrorMsg("");
     setResultImageUrl("");
+    setHistoryImages([]);
+    setSelectedIndex(0);
 
     const resourcePath = await uploadFile(file);
     if (!resourcePath) {
@@ -66,13 +83,18 @@ const Index = () => {
       return;
     }
 
+    // Store original preview
+    const originalUrl = URL.createObjectURL(file);
+    originalPreviewRef.current = originalUrl;
+    setHistoryImages([{ url: originalUrl, label: "原图" }]);
+
     lastResourcePathRef.current = resourcePath;
-    await generateWithScale(resourcePath, headScale);
+    await generateWithScale(resourcePath, headScale, true);
   }, [uploadFile, generateWithScale, headScale]);
 
   const handleRegenerate = useCallback(() => {
     if (lastResourcePathRef.current) {
-      generateWithScale(lastResourcePathRef.current, headScale);
+      generateWithScale(lastResourcePathRef.current, headScale, false);
     }
   }, [generateWithScale, headScale]);
 
@@ -87,9 +109,17 @@ const Index = () => {
     setResultImageUrl("");
     setErrorMsg("");
     setHeadScale(2.0);
+    setHistoryImages([]);
+    setSelectedIndex(0);
     lastResourcePathRef.current = null;
+    originalPreviewRef.current = null;
     resetUpload();
     clearImages();
+  };
+
+  const handleSelectHistory = (index: number) => {
+    setSelectedIndex(index);
+    setResultImageUrl(historyImages[index].url);
   };
 
   return (
@@ -173,7 +203,6 @@ const Index = () => {
 
         {(appState === "uploading" || appState === "generating") && (
           <div className="flex-1 flex flex-col items-center justify-center gap-5">
-            {/* Preview of original image */}
             {previewUrl && (
               <div className="w-40 h-40 rounded-xl overflow-hidden border border-border shadow-sm">
                 <img
@@ -209,15 +238,41 @@ const Index = () => {
         )}
 
         {appState === "done" && resultImageUrl && (
-          <div className="flex-1 flex flex-col items-center w-full max-w-sm gap-4 mt-2">
-            {/* Result Image */}
-            <div className="flex-1 w-full flex items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30 shadow-sm">
-              <img
-                src={resultImageUrl}
-                alt="大头矮人效果"
-                crossOrigin="anonymous"
-                className="max-w-full max-h-[50vh] object-contain"
-              />
+          <div className="flex-1 flex flex-col w-full max-w-md gap-4 mt-2">
+            {/* Image area with history sidebar */}
+            <div className="flex-1 flex gap-3 min-h-0">
+              {/* Left: History thumbnails */}
+              <div className="flex-shrink-0 w-16 overflow-y-auto space-y-2 pr-1">
+                {historyImages.map((item, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSelectHistory(idx)}
+                    className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${
+                      idx === selectedIndex
+                        ? "border-primary shadow-sm"
+                        : "border-border opacity-70 hover:opacity-100"
+                    }`}
+                  >
+                    <img
+                      src={item.url}
+                      alt={item.label}
+                      crossOrigin="anonymous"
+                      className="w-full h-full object-cover"
+                    />
+                    <span className="sr-only">{item.label}</span>
+                  </button>
+                ))}
+              </div>
+
+              {/* Right: Main preview */}
+              <div className="flex-1 flex items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30 shadow-sm">
+                <img
+                  src={resultImageUrl}
+                  alt="大头矮人效果"
+                  crossOrigin="anonymous"
+                  className="max-w-full max-h-[50vh] object-contain"
+                />
+              </div>
             </div>
 
             {/* Slider Control */}
