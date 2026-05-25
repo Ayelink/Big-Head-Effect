@@ -1,49 +1,43 @@
 import { useState, useRef, useCallback } from "react";
-import { Camera, ImagePlus, Loader2, Download, RefreshCw } from "lucide-react";
+import { Camera, ImagePlus, Loader2, Download, RefreshCw, Sparkles } from "lucide-react";
 import { useResourceUpload } from "@/hooks/useResourceUpload";
 import { useAIImage } from "@/hooks/useAIImage";
+import { Slider } from "@/components/ui/slider";
 
 type AppState = "idle" | "uploading" | "generating" | "done" | "error";
 
-const BIGHEAD_PROMPT = `Transform this photo into a "big head small body" caricature effect:
-- Enlarge the person's head to approximately 2.2x its original size
-- Shrink the body to about 60-70% of its original height
+function buildPrompt(scale: number): string {
+  const bodyRatio = Math.round((1 - (scale - 1) * 0.15) * 100);
+  return `Transform this photo into a "big head small body" caricature effect:
+- Enlarge the person's head to approximately ${scale}x its original size
+- Shrink the body to about ${bodyRatio}% of its original height
 - Keep the face details, expression, and features clear and recognizable
 - Maintain the original background and clothing
 - The result should look like a cute, funny bobblehead or chibi-style caricature
 - Keep the person's feet at the same position, compress the body from top
 - The enlarged head should be seamlessly connected to the smaller body`;
+}
 
 const Index = () => {
   const [appState, setAppState] = useState<AppState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [resultImageUrl, setResultImageUrl] = useState<string>("");
+  const [headScale, setHeadScale] = useState(2.0);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const lastResourcePathRef = useRef<string | null>(null);
 
   const { previewUrl, uploadFile, reset: resetUpload } = useResourceUpload();
   const { isLoading, submitAndPoll, clearImages } = useAIImage();
 
-  const processImage = useCallback(async (file: File) => {
-    setAppState("uploading");
-    setErrorMsg("");
-    setResultImageUrl("");
-
-    // Step 1: Upload image
-    const resourcePath = await uploadFile(file);
-    if (!resourcePath) {
-      setAppState("error");
-      setErrorMsg("图片上传失败，请重试");
-      return;
-    }
-
-    // Step 2: Call AI to generate big head effect
+  const generateWithScale = useCallback(async (resourcePath: string, scale: number) => {
     setAppState("generating");
+    setResultImageUrl("");
 
     const result = await submitAndPoll({
       model: "google/gemini-3.1-flash-image-preview",
-      prompt: BIGHEAD_PROMPT,
+      prompt: buildPrompt(scale),
       type: "img_2_img",
       resource_path: resourcePath,
       ratio: "3:4",
@@ -58,7 +52,29 @@ const Index = () => {
       setAppState("error");
       setErrorMsg("AI生成失败，请更换照片重试");
     }
-  }, [uploadFile, submitAndPoll]);
+  }, [submitAndPoll]);
+
+  const processImage = useCallback(async (file: File) => {
+    setAppState("uploading");
+    setErrorMsg("");
+    setResultImageUrl("");
+
+    const resourcePath = await uploadFile(file);
+    if (!resourcePath) {
+      setAppState("error");
+      setErrorMsg("图片上传失败，请重试");
+      return;
+    }
+
+    lastResourcePathRef.current = resourcePath;
+    await generateWithScale(resourcePath, headScale);
+  }, [uploadFile, generateWithScale, headScale]);
+
+  const handleRegenerate = useCallback(() => {
+    if (lastResourcePathRef.current) {
+      generateWithScale(lastResourcePathRef.current, headScale);
+    }
+  }, [generateWithScale, headScale]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -70,6 +86,8 @@ const Index = () => {
     setAppState("idle");
     setResultImageUrl("");
     setErrorMsg("");
+    setHeadScale(2.0);
+    lastResourcePathRef.current = null;
     resetUpload();
     clearImages();
   };
@@ -90,6 +108,28 @@ const Index = () => {
           <div className="flex-1 flex flex-col items-center justify-center gap-6 w-full max-w-sm">
             <div className="w-48 h-48 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
               <ImagePlus className="w-16 h-16 text-muted-foreground/40" />
+            </div>
+
+            {/* Head Scale Slider */}
+            <div className="w-full space-y-2 bg-card rounded-xl p-4 border border-border shadow-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-foreground">头部放大比例</span>
+                <span className="text-sm font-bold text-primary">{headScale.toFixed(1)}x</span>
+              </div>
+              <Slider
+                value={[headScale]}
+                onValueChange={(v) => setHeadScale(v[0])}
+                min={1.0}
+                max={4.0}
+                step={0.5}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>1.0x</span>
+                <span>2.0x</span>
+                <span>3.0x</span>
+                <span>4.0x</span>
+              </div>
             </div>
 
             <div className="flex gap-4 w-full">
@@ -176,8 +216,38 @@ const Index = () => {
                 src={resultImageUrl}
                 alt="大头矮人效果"
                 crossOrigin="anonymous"
-                className="max-w-full max-h-[60vh] object-contain"
+                className="max-w-full max-h-[50vh] object-contain"
               />
+            </div>
+
+            {/* Slider Control */}
+            <div className="w-full space-y-2 bg-card rounded-xl p-4 border border-border shadow-sm">
+              <div className="flex justify-between items-center">
+                <span className="text-sm font-medium text-foreground">头部放大比例</span>
+                <span className="text-sm font-bold text-primary">{headScale.toFixed(1)}x</span>
+              </div>
+              <Slider
+                value={[headScale]}
+                onValueChange={(v) => setHeadScale(v[0])}
+                min={1.0}
+                max={4.0}
+                step={0.5}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>1.0x</span>
+                <span>2.0x</span>
+                <span>3.0x</span>
+                <span>4.0x</span>
+              </div>
+              <button
+                onClick={handleRegenerate}
+                disabled={isLoading}
+                className="w-full mt-2 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-accent text-accent-foreground font-medium text-sm active:scale-95 transition-transform disabled:opacity-50"
+              >
+                <Sparkles className="w-4 h-4" />
+                重新生成
+              </button>
             </div>
 
             {/* Action Buttons */}
