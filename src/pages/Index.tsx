@@ -256,7 +256,7 @@ const Index = () => {
                 <span className="text-[12px]">3.0x</span>
                 <span className="text-[12px]">4.0x</span>
               </div>
-              <button onClick={handleRegenerate} disabled={isLoading} className="w-full mt-element flex items-center justify-center gap-2 h-[32px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity disabled:opacity-30">
+              <button onClick={handleRegenerate} disabled={isLoading} className="w-full mt-element flex items-center justify-center gap-2 h-[48px] rounded-[8px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity disabled:opacity-30">
                 <Sparkles className="w-4 h-4" />
                 {t(locale, "regenerate")}
               </button>
@@ -264,11 +264,11 @@ const Index = () => {
 
             {/* Action Buttons */}
             <div className="flex gap-element flex-shrink-0">
-              <button onClick={handleReset} className="flex-1 flex items-center justify-center gap-2 h-[32px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
+              <button onClick={handleReset} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
                 <RefreshCw className="w-4 h-4" />
                 {t(locale, "changePhoto")}
               </button>
-              <a href={resultImageUrl} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 h-[32px] bg-foreground text-background font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
+              <a href={resultImageUrl} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] bg-foreground text-background font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
                 <Download className="w-4 h-4" />
                 {t(locale, "viewFull")}
               </a>
