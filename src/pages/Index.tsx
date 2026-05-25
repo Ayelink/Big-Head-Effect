@@ -161,7 +161,7 @@ const Index = () => {
       <main className="flex-1 flex flex-col px-5 pb-5 gap-section overflow-hidden">
         {appState === "idle" && <div className="flex-1 flex flex-col justify-center gap-element">
             {/* Upload Area */}
-            <div className="flex flex-col items-center py-10 border border-dashed border-light-pebble rounded-pill">
+            <div className="flex flex-col items-center py-10 border border-dashed border-light-pebble rounded-[8px]">
               <ImagePlus className="w-10 h-10 text-charcoal-gray mb-3" />
               <p className="text-[14px] text-muted-foreground tracking-[-0.28px]">
                 {t(locale, "fileTip")}
@@ -189,11 +189,11 @@ const Index = () => {
 
             {/* Buttons */}
             <div className="flex gap-element">
-              <button onClick={() => fileInputRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 h-[48px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
+              <button onClick={() => fileInputRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
                 <ImagePlus className="w-[18px] h-[18px]" />
                 {t(locale, "uploadBtn")}
               </button>
-              <button onClick={() => cameraInputRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 h-[48px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
+              <button onClick={() => cameraInputRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
                 <Camera className="w-[18px] h-[18px]" />
                 {t(locale, "cameraBtn")}
               </button>
