@@ -128,7 +128,7 @@ const Index = () => {
       {/* Header */}
       <header className="flex-shrink-0 px-5 pt-5 pb-4 flex items-start justify-between">
         <div>
-          <h1 className="font-medium tracking-[-0.66px] text-foreground text-[24px]">
+          <h1 className="font-medium tracking-[-0.66px] text-foreground text-[16px]">
             {t(locale, "title")}
           </h1>
           <p className="tracking-[-0.28px] text-muted-foreground mt-1 text-[12px]">
