@@ -228,7 +228,7 @@ const Index = () => {
             <div className="flex gap-element flex-1 min-h-0">
               {/* Left: History thumbnails */}
               <div className="flex-shrink-0 w-14 flex flex-col gap-2 overflow-y-auto">
-                {historyImages.map((item, idx) => <button key={idx} onClick={() => handleSelectHistory(idx)} className={`w-14 h-14 flex-shrink-0 overflow-hidden border transition-all ${idx === selectedIndex ? "border-foreground" : "border-border opacity-60"}`}>
+                {historyImages.map((item, idx) => <button key={idx} onClick={() => handleSelectHistory(idx)} className={`w-14 h-[74px] flex-shrink-0 overflow-hidden border transition-all ${idx === selectedIndex ? "border-foreground" : "border-border opacity-60"}`}>
                     <img src={item.url} alt={item.label} crossOrigin="anonymous" className="w-full h-full object-cover" />
                   </button>)}
               </div>
@@ -240,7 +240,7 @@ const Index = () => {
             </div>
 
             {/* Scale Slider */}
-            <div className="bg-card p-card-pad space-y-element flex-shrink-0">
+            <div className="bg-card px-4 py-3 space-y-2 flex-shrink-0 rounded-[8px]">
               <div className="flex justify-between items-center">
                 <span className="text-[14px] font-medium text-foreground tracking-[-0.28px]">
                   {t(locale, "scaleLabel")}
