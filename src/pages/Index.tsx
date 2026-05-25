@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from "react";
-import { Camera, ImagePlus, Loader2, Download, RefreshCw, Sparkles } from "lucide-react";
+import { Camera, ImagePlus, Loader2, Download, RefreshCw, Sparkles, Globe, ChevronDown } from "lucide-react";
 import { useResourceUpload } from "@/hooks/useResourceUpload";
 import { useAIImage } from "@/hooks/useAIImage";
 import { Slider } from "@/components/ui/slider";
+import { type Locale, t } from "@/lib/i18n";
 
 type AppState = "idle" | "uploading" | "generating" | "done" | "error";
 
@@ -24,6 +25,8 @@ function buildPrompt(scale: number): string {
 }
 
 const Index = () => {
+  const [locale, setLocale] = useState<Locale>("zh");
+  const [langOpen, setLangOpen] = useState(false);
   const [appState, setAppState] = useState<AppState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
   const [resultImageUrl, setResultImageUrl] = useState<string>("");
@@ -39,7 +42,7 @@ const Index = () => {
   const { previewUrl, uploadFile, reset: resetUpload } = useResourceUpload();
   const { isLoading, submitAndPoll, clearImages } = useAIImage();
 
-  const generateWithScale = useCallback(async (resourcePath: string, scale: number, isFirst: boolean) => {
+  const generateWithScale = useCallback(async (resourcePath: string, scale: number) => {
     setAppState("generating");
     setResultImageUrl("");
 
@@ -65,9 +68,9 @@ const Index = () => {
       setAppState("done");
     } else {
       setAppState("error");
-      setErrorMsg("AI生成失败，请更换照片重试");
+      setErrorMsg(t(locale, "generateFailed"));
     }
-  }, [submitAndPoll]);
+  }, [submitAndPoll, locale]);
 
   const processImage = useCallback(async (file: File) => {
     setAppState("uploading");
@@ -79,22 +82,21 @@ const Index = () => {
     const resourcePath = await uploadFile(file);
     if (!resourcePath) {
       setAppState("error");
-      setErrorMsg("图片上传失败，请重试");
+      setErrorMsg(t(locale, "uploadFailed"));
       return;
     }
 
-    // Store original preview
     const originalUrl = URL.createObjectURL(file);
     originalPreviewRef.current = originalUrl;
-    setHistoryImages([{ url: originalUrl, label: "原图" }]);
+    setHistoryImages([{ url: originalUrl, label: t(locale, "original") }]);
 
     lastResourcePathRef.current = resourcePath;
-    await generateWithScale(resourcePath, headScale, true);
-  }, [uploadFile, generateWithScale, headScale]);
+    await generateWithScale(resourcePath, headScale);
+  }, [uploadFile, generateWithScale, headScale, locale]);
 
   const handleRegenerate = useCallback(() => {
     if (lastResourcePathRef.current) {
-      generateWithScale(lastResourcePathRef.current, headScale, false);
+      generateWithScale(lastResourcePathRef.current, headScale);
     }
   }, [generateWithScale, headScale]);
 
@@ -122,29 +124,77 @@ const Index = () => {
     setResultImageUrl(historyImages[index].url);
   };
 
+  const toggleLang = (l: Locale) => {
+    setLocale(l);
+    setLangOpen(false);
+  };
+
   return (
-    <div className="min-h-full flex flex-col bg-background">
+    <div className="min-h-full flex flex-col bg-background font-sans">
       {/* Header */}
-      <header className="flex-shrink-0 px-4 pt-6 pb-3 text-center">
-        <h1 className="text-2xl font-bold text-foreground">大头矮人特效</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          AI 一键生成趣味大头娃娃效果
-        </p>
+      <header className="flex-shrink-0 px-5 pt-5 pb-4 flex items-start justify-between">
+        <div>
+          <h1 className="text-[30px] font-medium leading-[1.2] tracking-[-0.66px] text-foreground">
+            {t(locale, "title")}
+          </h1>
+          <p className="text-[14px] leading-[1.79] tracking-[-0.28px] text-muted-foreground mt-1">
+            {t(locale, "subtitle")}
+          </p>
+        </div>
+
+        {/* Language Dropdown */}
+        <div className="relative">
+          <button
+            onClick={() => setLangOpen(!langOpen)}
+            className="flex items-center gap-1 text-[14px] text-foreground px-3 py-2 border border-border rounded-pill active:opacity-70 transition-opacity"
+          >
+            <Globe className="w-4 h-4" />
+            <span>{locale === "zh" ? "中文" : "EN"}</span>
+            <ChevronDown className="w-3 h-3" />
+          </button>
+          {langOpen && (
+            <>
+              <div className="fixed inset-0 z-40" onClick={() => setLangOpen(false)} />
+              <div className="absolute right-0 top-full mt-1 z-50 bg-background border border-border rounded-pill overflow-hidden shadow-sm">
+                <button
+                  onClick={() => toggleLang("zh")}
+                  className={`block w-full text-left px-4 py-2.5 text-[14px] tracking-[-0.28px] transition-colors ${locale === "zh" ? "font-medium bg-card" : "hover:bg-card"}`}
+                >
+                  中文
+                </button>
+                <button
+                  onClick={() => toggleLang("en")}
+                  className={`block w-full text-left px-4 py-2.5 text-[14px] tracking-[-0.28px] transition-colors ${locale === "en" ? "font-medium bg-card" : "hover:bg-card"}`}
+                >
+                  English
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </header>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col items-center px-4 pb-6">
+      <main className="flex-1 flex flex-col px-5 pb-5 gap-section overflow-hidden">
         {appState === "idle" && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-6 w-full max-w-sm">
-            <div className="w-48 h-48 rounded-full border-2 border-dashed border-muted-foreground/30 flex items-center justify-center">
-              <ImagePlus className="w-16 h-16 text-muted-foreground/40" />
+          <div className="flex-1 flex flex-col justify-center gap-element">
+            {/* Upload Area */}
+            <div className="flex flex-col items-center py-10 border border-dashed border-light-pebble rounded-pill">
+              <ImagePlus className="w-10 h-10 text-charcoal-gray mb-3" />
+              <p className="text-[14px] text-muted-foreground tracking-[-0.28px]">
+                {t(locale, "fileTip")}
+              </p>
             </div>
 
-            {/* Head Scale Slider */}
-            <div className="w-full space-y-2 bg-card rounded-xl p-4 border border-border shadow-sm">
+            {/* Scale Slider */}
+            <div className="bg-card p-card-pad space-y-element">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-foreground">头部放大比例</span>
-                <span className="text-sm font-bold text-primary">{headScale.toFixed(1)}x</span>
+                <span className="text-[14px] font-medium text-foreground tracking-[-0.28px]">
+                  {t(locale, "scaleLabel")}
+                </span>
+                <span className="text-[21px] font-medium text-foreground tracking-[-0.5px]">
+                  {headScale.toFixed(1)}x
+                </span>
               </div>
               <Slider
                 value={[headScale]}
@@ -154,7 +204,7 @@ const Index = () => {
                 step={0.5}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs text-muted-foreground">
+              <div className="flex justify-between text-[14px] text-muted-foreground tracking-[-0.28px]">
                 <span>1.0x</span>
                 <span>2.0x</span>
                 <span>3.0x</span>
@@ -162,95 +212,72 @@ const Index = () => {
               </div>
             </div>
 
-            <div className="flex gap-4 w-full">
+            {/* Buttons */}
+            <div className="flex gap-element">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-primary text-primary-foreground font-medium text-base shadow-sm active:scale-95 transition-transform"
+                className="flex-1 flex items-center justify-center gap-2 py-[20px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity"
               >
-                <ImagePlus className="w-5 h-5" />
-                上传图片
+                <ImagePlus className="w-[18px] h-[18px]" />
+                {t(locale, "uploadBtn")}
               </button>
               <button
                 onClick={() => cameraInputRef.current?.click()}
-                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-secondary text-secondary-foreground font-medium text-base shadow-sm active:scale-95 transition-transform"
+                className="flex-1 flex items-center justify-center gap-2 py-[20px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity"
               >
-                <Camera className="w-5 h-5" />
-                拍照
+                <Camera className="w-[18px] h-[18px]" />
+                {t(locale, "cameraBtn")}
               </button>
             </div>
 
-            <p className="text-xs text-muted-foreground/60 text-center">
-              支持 JPG、PNG、WebP 格式，最大 10MB
-            </p>
-
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <input
-              ref={cameraInputRef}
-              type="file"
-              accept="image/*"
-              capture="environment"
-              className="hidden"
-              onChange={handleFileChange}
-            />
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+            <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
           </div>
         )}
 
         {(appState === "uploading" || appState === "generating") && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-5">
+          <div className="flex-1 flex flex-col items-center justify-center gap-element">
             {previewUrl && (
-              <div className="w-40 h-40 rounded-xl overflow-hidden border border-border shadow-sm">
-                <img
-                  src={previewUrl}
-                  alt="原图预览"
-                  className="w-full h-full object-cover"
-                />
+              <div className="w-32 h-32 overflow-hidden border border-border">
+                <img src={previewUrl} alt="" className="w-full h-full object-cover" />
               </div>
             )}
-
-            <div className="flex flex-col items-center gap-3">
-              <Loader2 className="w-10 h-10 text-primary animate-spin" />
-              <p className="text-base font-medium text-foreground">
-                {appState === "uploading" ? "上传中..." : "AI 正在生成大头效果..."}
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {appState === "uploading" ? "正在上传图片" : "通常需要 10-30 秒，请耐心等待"}
-              </p>
-            </div>
+            <Loader2 className="w-8 h-8 text-foreground animate-spin" />
+            <p className="text-[21px] font-medium text-foreground tracking-[-0.5px] leading-[1.36]">
+              {appState === "uploading" ? t(locale, "uploading") : t(locale, "generating")}
+            </p>
+            <p className="text-[14px] text-muted-foreground tracking-[-0.28px]">
+              {appState === "uploading" ? t(locale, "uploadingDesc") : t(locale, "generatingDesc")}
+            </p>
           </div>
         )}
 
         {appState === "error" && (
-          <div className="flex-1 flex flex-col items-center justify-center gap-4">
-            <p className="text-base text-destructive text-center px-4">{errorMsg}</p>
+          <div className="flex-1 flex flex-col items-center justify-center gap-element">
+            <p className="text-[14px] text-foreground text-center leading-[1.79] tracking-[-0.28px]">{errorMsg}</p>
             <button
               onClick={handleReset}
-              className="py-2.5 px-6 rounded-xl bg-primary text-primary-foreground font-medium active:scale-95 transition-transform"
+              className="px-[20px] py-[20px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity"
             >
-              重新开始
+              {t(locale, "errorRetry")}
             </button>
           </div>
         )}
 
         {appState === "done" && resultImageUrl && (
-          <div className="flex-1 flex flex-col w-full max-w-md gap-4 mt-2">
-            {/* Image area with history sidebar */}
-            <div className="flex-1 flex gap-3 min-h-0">
+          <div className="flex-1 flex flex-col gap-section min-h-0 overflow-y-auto">
+            {/* Image area with history */}
+            <div className="flex gap-element flex-1 min-h-0">
               {/* Left: History thumbnails */}
-              <div className="flex-shrink-0 w-16 overflow-y-auto space-y-2 pr-1">
+              <div className="flex-shrink-0 w-14 flex flex-col gap-2 overflow-y-auto">
                 {historyImages.map((item, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSelectHistory(idx)}
-                    className={`w-14 h-14 rounded-lg overflow-hidden border-2 transition-all flex-shrink-0 ${
+                    className={`w-14 h-14 flex-shrink-0 overflow-hidden border transition-all ${
                       idx === selectedIndex
-                        ? "border-primary shadow-sm"
-                        : "border-border opacity-70 hover:opacity-100"
+                        ? "border-foreground"
+                        : "border-border opacity-60"
                     }`}
                   >
                     <img
@@ -259,27 +286,30 @@ const Index = () => {
                       crossOrigin="anonymous"
                       className="w-full h-full object-cover"
                     />
-                    <span className="sr-only">{item.label}</span>
                   </button>
                 ))}
               </div>
 
               {/* Right: Main preview */}
-              <div className="flex-1 flex items-center justify-center overflow-hidden rounded-xl border border-border bg-muted/30 shadow-sm">
+              <div className="flex-1 flex items-center justify-center overflow-hidden bg-card min-h-0">
                 <img
                   src={resultImageUrl}
-                  alt="大头矮人效果"
+                  alt="result"
                   crossOrigin="anonymous"
-                  className="max-w-full max-h-[50vh] object-contain"
+                  className="max-w-full max-h-[45vh] object-contain"
                 />
               </div>
             </div>
 
-            {/* Slider Control */}
-            <div className="w-full space-y-2 bg-card rounded-xl p-4 border border-border shadow-sm">
+            {/* Scale Slider */}
+            <div className="bg-card p-card-pad space-y-element flex-shrink-0">
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-foreground">头部放大比例</span>
-                <span className="text-sm font-bold text-primary">{headScale.toFixed(1)}x</span>
+                <span className="text-[14px] font-medium text-foreground tracking-[-0.28px]">
+                  {t(locale, "scaleLabel")}
+                </span>
+                <span className="text-[21px] font-medium text-foreground tracking-[-0.5px]">
+                  {headScale.toFixed(1)}x
+                </span>
               </div>
               <Slider
                 value={[headScale]}
@@ -289,7 +319,7 @@ const Index = () => {
                 step={0.5}
                 className="w-full"
               />
-              <div className="flex justify-between text-xs text-muted-foreground">
+              <div className="flex justify-between text-[14px] text-muted-foreground tracking-[-0.28px]">
                 <span>1.0x</span>
                 <span>2.0x</span>
                 <span>3.0x</span>
@@ -298,30 +328,30 @@ const Index = () => {
               <button
                 onClick={handleRegenerate}
                 disabled={isLoading}
-                className="w-full mt-2 flex items-center justify-center gap-2 py-2.5 rounded-lg bg-accent text-accent-foreground font-medium text-sm active:scale-95 transition-transform disabled:opacity-50"
+                className="w-full mt-element flex items-center justify-center gap-2 py-[20px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity disabled:opacity-30"
               >
                 <Sparkles className="w-4 h-4" />
-                重新生成
+                {t(locale, "regenerate")}
               </button>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3 w-full">
+            <div className="flex gap-element flex-shrink-0">
               <button
                 onClick={handleReset}
-                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-secondary text-secondary-foreground font-medium text-sm active:scale-95 transition-transform"
+                className="flex-1 flex items-center justify-center gap-2 py-[20px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity"
               >
                 <RefreshCw className="w-4 h-4" />
-                换一张
+                {t(locale, "changePhoto")}
               </button>
               <a
                 href={resultImageUrl}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex-1 flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-primary text-primary-foreground font-medium text-sm active:scale-95 transition-transform"
+                className="flex-1 flex items-center justify-center gap-2 py-[20px] bg-foreground text-background font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity"
               >
                 <Download className="w-4 h-4" />
-                查看大图
+                {t(locale, "viewFull")}
               </a>
             </div>
           </div>
