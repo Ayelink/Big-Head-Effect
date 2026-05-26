@@ -1,24 +1,27 @@
-# Fix Aspect Ratio Cropping Issue
+# Investigate and Fix Generation Failures
 
 ## Context
-The AI model automatically crops images if they don't match its supported ratios, leading to unpredictable results. To fix this, we will enforce strict rules on the frontend before sending the image to the AI.
+The user reported that there are many cases where the image generation fails. Currently, the application hides the actual error message returned by the AI API and only shows a generic "Generation Failed" (生成失败) message. This makes it difficult to know exactly why the AI model is rejecting the request.
 
-## Core Rules
-1. **DO NOT crop the generated image**: The output from the AI will be displayed exactly as returned.
-2. **Standard Ratios**: If the user uploads an image that matches a standard ratio (`16:9`, `9:16`, `4:3`, `3:4`, `3:2`, `2:3`, `1:1`), **do not crop it**.
-3. **Non-Standard Ratios**: Only if the user uploads a non-standard size, we will adjust (center-crop) the uploaded image to the closest standard ratio *before* uploading it to the AI.
+Possible reasons for failure:
+1. **Strict Prompt / Safety Filters**: The prompt contains words like "skull", "hallucinations", or "bust shot" which might trigger the AI model's safety filters.
+2. **Image Size/Resolution**: The uploaded image might be too large (e.g., > 4MB or > 2048x2048) for the AI model to process.
+3. **Float Dimensions**: The recent aspect ratio cropping logic might be creating canvases with floating-point dimensions (e.g., `1777.77px`), which could cause issues.
 
-## Implementation Steps
-1. **Define Standard Ratios**: `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, `2:3`, `1:1`.
-2. **Pre-process Uploaded Image (`src/pages/Index.tsx`)**:
-   - When a user selects a file, calculate its aspect ratio (`width / height`).
-   - Check if it matches any standard ratio (with a small tolerance, e.g., `0.05`).
-   - If it matches, use the original file directly.
-   - If it does NOT match, use a Canvas to center-crop the image to the closest standard ratio, and generate a new File object.
-3. **Upload and Generate**:
-   - Upload the processed file (either original or cropped to standard).
-   - Pass the exact matched standard ratio to the AI API's `ratio` parameter.
-   - Display the AI's result directly without any post-processing.
+## Proposed Solution
+
+### 1. Expose the Actual Error Message
+We will update `Index.tsx` to read the `error` state from the `useAIImage` hook. If the generation fails, we will display the exact error message returned by the backend (e.g., "Prompt violates safety policy" or "Image too large"). This will immediately tell us what is wrong.
+
+### 2. Fix Canvas Dimensions and Add Max Resolution
+We will update the `prepareImageFile` function in `Index.tsx` to:
+- Use `Math.round()` for all canvas dimensions to ensure they are integers.
+- Scale down the image if its longest side exceeds `2048` pixels. This ensures the image is always within a safe size limit for the AI model, while maintaining the correct aspect ratio.
 
 ## Files to Modify
-- `src/pages/Index.tsx`: Add the image pre-processing logic (ratio checking and center-cropping for non-standard images) before calling `uploadFile`.
+- `src/pages/Index.tsx`:
+  - Update `prepareImageFile` to include `Math.round` and a max dimension of 2048.
+  - Update the `generateWithScale` function to use the `error` state from `useAIImage` instead of the generic `t(locale, "generateFailed")`.
+
+## Verification
+After these changes, if a generation fails, the UI will display the exact reason. We can then adjust the prompt or image processing further if needed based on the specific error.
