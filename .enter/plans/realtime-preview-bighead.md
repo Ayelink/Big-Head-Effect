@@ -1,35 +1,24 @@
 # Fix Aspect Ratio Cropping Issue
 
 ## Context
-The user is experiencing image cropping after the AI generation. 
+The AI model automatically crops images if they don't match its supported ratios, leading to unpredictable results. To fix this, we will enforce strict rules on the frontend before sending the image to the AI.
 
-**The Root Cause:**
-The AI model (`google/gemini-3.1-flash-image-preview`) strictly requires specific aspect ratios (`16:9`, `4:3`, `1:1`, `3:4`, `9:16`). 
-If an uploaded image has a custom ratio (e.g., `2:3`), we currently calculate the closest supported ratio (e.g., `3:4`) and tell the AI to use it. 
-Because the AI is forced to output `3:4`, it automatically crops the original `2:3` image to fit the new `3:4` bounding box. This is a hard limitation of the AI model itself—it cannot output arbitrary dimensions.
+## Core Rules
+1. **DO NOT crop the generated image**: The output from the AI will be displayed exactly as returned.
+2. **Standard Ratios**: If the user uploads an image that matches a standard ratio (`16:9`, `9:16`, `4:3`, `3:4`, `3:2`, `2:3`, `1:1`), **do not crop it**.
+3. **Non-Standard Ratios**: Only if the user uploads a non-standard size, we will adjust (center-crop) the uploaded image to the closest standard ratio *before* uploading it to the AI.
 
-## Proposed Solution: The "Pad and Crop" Workaround
-Since the AI model cannot handle custom ratios, we must handle it on the frontend using Canvas.
-
-1. **Before AI (Padding)**: 
-   - Calculate the closest supported AI ratio.
-   - Draw the original image onto a Canvas that exactly matches that supported ratio.
-   - Fill the empty space (padding) with a solid color (e.g., white or black).
-   - Upload this *padded* image to the AI.
-2. **AI Generation**:
-   - The AI receives an image that is *already* in its supported ratio. It will not crop anything. It will just enlarge the head.
-3. **After AI (Cropping)**:
-   - Download the AI-generated image.
-   - Draw it onto a Canvas.
-   - Crop out the padding we added in Step 1, restoring the image to its *exact original dimensions*.
-   - Display this final image to the user.
+## Implementation Steps
+1. **Define Standard Ratios**: `16:9`, `9:16`, `4:3`, `3:4`, `3:2`, `2:3`, `1:1`.
+2. **Pre-process Uploaded Image (`src/pages/Index.tsx`)**:
+   - When a user selects a file, calculate its aspect ratio (`width / height`).
+   - Check if it matches any standard ratio (with a small tolerance, e.g., `0.05`).
+   - If it matches, use the original file directly.
+   - If it does NOT match, use a Canvas to center-crop the image to the closest standard ratio, and generate a new File object.
+3. **Upload and Generate**:
+   - Upload the processed file (either original or cropped to standard).
+   - Pass the exact matched standard ratio to the AI API's `ratio` parameter.
+   - Display the AI's result directly without any post-processing.
 
 ## Files to Modify
-- `src/pages/Index.tsx`: 
-  - Add a utility function to pad the image before upload.
-  - Add a utility function to crop the image after generation.
-  - Update the `processImage` and `generateWithScale` flows to use these utilities.
-
-## Verification
-- Upload an image with an extreme custom ratio (e.g., a very tall panorama).
-- Verify that the final generated image has the exact same pixel dimensions as the original upload, with no content cropped out.
+- `src/pages/Index.tsx`: Add the image pre-processing logic (ratio checking and center-cropping for non-standard images) before calling `uploadFile`.
