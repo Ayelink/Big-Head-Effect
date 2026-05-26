@@ -1,26 +1,32 @@
-# Fix: Strict Image Fidelity and Ratio Preservation
+# Fix: Exact Image Ratio and Fidelity
 
 ## Context
-The user is experiencing two issues with the AI-generated "big head" effect:
-1. **Ratio/Cropping**: The generated image has a different aspect ratio or crop compared to the original.
-2. **Fidelity/Hallucination**: The AI alters the person's face, changes the background, or hallucinates body parts (like adding a full body to a half-body shot).
+The user is asking why we can't just use the exact uploaded image ratio, and why there are ratio restrictions. They also want strict fidelity (no face changes, no hallucinated body parts).
 
 ## Root Cause
-1. **Ratio**: The AI model (`google/gemini-3.1-flash-image-preview`) only supports specific aspect ratios (16:9, 4:3, 1:1, 3:4, 9:16). If the uploaded image doesn't perfectly match one of these, the AI crops it.
-2. **Fidelity**: Generative AI models naturally want to "redraw" the whole image. Even with strict prompts, they struggle to keep exact pixel fidelity.
+The AI model we are using (`google/gemini-3.1-flash-image-preview`) has a strict API limitation: it **only accepts specific predefined ratio strings** (`1:1`, `4:3`, `3:4`, `16:9`, `9:16`, `21:9`). If we pass an arbitrary ratio (like `2:3` or `original`), the API will reject it or default to `1:1`. Because the AI forces the output into one of these fixed ratios, it ends up cropping or padding the original image, which changes the composition.
 
 ## Solution
 
-### 1. Fix the Ratio Issue (Canvas Padding/Cropping)
-Since the AI only accepts fixed ratios, we must handle the ratio mismatch on the frontend:
-- **Pre-process**: Before uploading, draw the user's image onto a Canvas that exactly matches the closest supported AI ratio (e.g., 3:4). Pad the extra space with a solid color (e.g., white).
-- **Post-process**: After the AI generates the image, draw it back onto a Canvas and crop out the padding, restoring the exact original dimensions.
-*(Alternatively, we can just accept the closest ratio but ensure the prompt strictly forbids zooming out or changing the composition).*
+Since we **must** use this specific AI model (as per the system reminder), and the AI model **forces** fixed ratios, the only way to guarantee the output has the EXACT same dimensions and crop as the uploaded image is to handle it on the frontend using Canvas:
 
-Let's try a simpler approach first: The AI is likely zooming out to fit the new ratio. We will instruct it to maintain the exact scale.
+### 1. Pre-processing (Padding)
+Before uploading the image to the AI:
+- Calculate the closest supported AI ratio (e.g., `3:4`).
+- Create a Canvas with that exact `3:4` ratio.
+- Draw the user's original image in the center of this Canvas, padding the empty space with a solid color (e.g., white).
+- Upload this padded image to the AI.
+*This ensures the AI receives an image that perfectly matches its required ratio, so it won't crop the actual photo content.*
 
-### 2. Ultra-Strict Prompting
-We need to frame the prompt not as a "transformation" but as a "photoshop edit".
+### 2. Post-processing (Cropping)
+After the AI generates the "big head" image:
+- Download the AI-generated image.
+- Draw it onto a new Canvas that has the **exact dimensions of the user's original uploaded image**.
+- This effectively crops out the padding we added in step 1.
+- Display this final cropped image to the user.
+
+### 3. Ultra-Strict Prompt
+Update the prompt to be extremely explicit about acting as a photo editor, not a generative artist.
 
 ```typescript
 function buildPrompt(scale: number): string {
@@ -38,5 +44,6 @@ CRITICAL INSTRUCTIONS:
 - `src/pages/Index.tsx`
 
 ## Verification
-- Upload the provided image (man with phones).
-- The output should have the exact same face, no extra body parts, and the same relative framing.
+- Upload an image with an arbitrary ratio (e.g., 2:3).
+- The final displayed result will have the exact same 2:3 ratio.
+- The face will remain identical, and no extra body parts will be added.
