@@ -1,27 +1,47 @@
-# Fix: Image Ratio Consistency & Top Alignment
+# Fix: Preserve Original Image Fidelity in Big Head Effect
 
 ## Context
-The generated image uses a hardcoded `ratio: "3:4"` in the AI call, but the original uploaded image can be any aspect ratio. This causes the generated result to have a different aspect ratio than the original. Additionally, the left thumbnails and right preview should be top-aligned instead of center-aligned.
+The current AI prompt ("Transform this photo into a big head small body caricature") gives the model too much creative freedom. Results show:
+- Face/head angle changes from original
+- Facial features are altered
+- Half-body photos get "imagined" full bodies added
+- Overall composition changes
 
-## Changes
+The user's requirement is strictly: **enlarge only the head+hair region while keeping EVERYTHING else pixel-perfect identical**. If the source is half-body, the output must remain half-body.
 
-### 1. Detect original image aspect ratio and pass to AI (`src/pages/Index.tsx`)
-- In `processImage`, after creating the blob URL, load it into an `Image` object to read `naturalWidth`/`naturalHeight`
-- Store the aspect ratio in a ref (e.g. `imageRatioRef`)
-- Compute the closest supported ratio string (e.g. "3:4", "4:3", "1:1", "9:16", "16:9") from the actual dimensions
-- Pass this dynamic ratio to `generateWithScale` instead of the hardcoded `"3:4"`
+## Root Cause
+The `buildPrompt()` function in `src/pages/Index.tsx` (line 12-22) uses vague language like "transform", "caricature", "cute funny bobblehead" which invites the model to re-interpret the entire image.
 
-### 2. Top-align the image area (`src/pages/Index.tsx`, line 228-237)
-- Change `items-center` → `items-start` on the main preview container (line 237)
-- Change `flex-1 min-h-0` on the image area to use `items-start` alignment
+## Fix: Rewrite the Prompt
 
-### 3. Keep thumbnail aspect ratio consistent
-- Instead of fixed `h-[74px]`, use the same dynamic ratio for thumbnails (or just use `aspect-[3/4]` as default since most portraits are taller than wide). Better approach: use `aspect-auto` with `object-cover` to let each thumbnail naturally crop to fill.
+Replace the current prompt with an extremely restrictive one that:
+1. Explicitly says to keep the **exact same image** — same face, same angle, same expression, same background, same crop
+2. Only instruction is to **scale up the head (including hair) proportionally**
+3. Explicitly says: **do NOT add body parts, do NOT change the crop, do NOT change face orientation or features**
+4. Makes clear that if it's a half-body or bust shot, the result must remain exactly that
+
+### New prompt (in `buildPrompt`):
+
+```
+Edit this photo with ONLY the following change: scale up the person's entire head (skull, face, and hair) to ${scale}x its current size, keeping it centered on the same neck position.
+
+CRITICAL RULES — you MUST follow ALL of these:
+- The face must remain IDENTICAL: same person, same angle, same expression, same lighting, same skin texture
+- Hair must scale proportionally with the head
+- Do NOT modify, crop, extend, or reimagine ANY other part of the image
+- Do NOT add body parts that are not visible in the original (e.g., if legs are not shown, do not add them)
+- Do NOT change the background, clothing, pose, or image boundaries
+- The output must have the EXACT same framing/crop as the input
+- Only the head size changes — everything else stays pixel-perfect
+```
+
+### Also remove the `ratio` parameter
+Currently passing a detected ratio which may cause the AI to resize/reframe the output. Remove `ratio` from the generation options to let the model produce output matching the source exactly.
 
 ## Files to Modify
-- `src/pages/Index.tsx`
+- `src/pages/Index.tsx` — rewrite `buildPrompt()` function and remove `ratio` from `generateWithScale`
 
 ## Verification
-- Upload a landscape image → generated image should maintain landscape ratio
-- Upload a portrait image → generated image should maintain portrait ratio
-- Left thumbnails and right preview should align at the top
+- Upload a half-body photo → output should remain half-body with only the head enlarged
+- Face details, angle, expression should be identical to original
+- No body parts should be "invented" or added
