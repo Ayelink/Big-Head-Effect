@@ -1,4 +1,4 @@
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { Camera, ImagePlus, Loader2, Download, RefreshCw, Sparkles, Globe, ChevronDown } from "lucide-react";
 import { useResourceUpload } from "@/hooks/useResourceUpload";
 import { useAIImage } from "@/hooks/useAIImage";
@@ -15,7 +15,7 @@ function buildPrompt(scale: number): string {
 CRITICAL INSTRUCTIONS:
 1. SCALE ONLY THE HEAD: Enlarge the head and hair to ${scale}x size.
 2. ZERO OTHER CHANGES: The face identity, expression, glasses, lighting, and skin MUST remain 100% identical to the original. Do not redraw or alter the face.
-3. NO HALLUCINATIONS: If this is a half-body or bust shot, keep it exactly as a half-body or bust shot. DO NOT add legs, lower body, or any parts not visible in the original.
+3. NO HALLUCINATIONS: If this is a half-body or upper body portrait, keep it exactly as a half-body or upper body portrait. DO NOT add legs, lower body, or any parts not visible in the original.
 4. EXACT COMPOSITION: Keep the exact same background, hands, clothing, and framing. Do not zoom out. Do not change the image boundaries.`;
 }
 const STANDARD_RATIOS = [
@@ -58,9 +58,9 @@ async function prepareImageFile(file: File): Promise<{ file: File, ratio: string
       let targetH = h;
       
       if (r > targetRatioValue) {
-        targetW = h * targetRatioValue;
+        targetW = Math.round(h * targetRatioValue);
       } else {
-        targetH = w / targetRatioValue;
+        targetH = Math.round(w / targetRatioValue);
       }
       
       const canvas = document.createElement("canvas");
@@ -72,8 +72,8 @@ async function prepareImageFile(file: File): Promise<{ file: File, ratio: string
         return;
       }
       
-      const offsetX = (w - targetW) / 2;
-      const offsetY = (h - targetH) / 2;
+      const offsetX = Math.round((w - targetW) / 2);
+      const offsetY = Math.round((h - targetH) / 2);
       
       ctx.drawImage(img, offsetX, offsetY, targetW, targetH, 0, 0, targetW, targetH);
       
@@ -113,7 +113,8 @@ const Index = () => {
   const {
     isLoading,
     submitAndPoll,
-    clearImages
+    clearImages,
+    error: aiError
   } = useAIImage();
   const generateWithScale = useCallback(async (resourcePath: string, scale: number) => {
     setAppState("generating");
@@ -142,9 +143,18 @@ const Index = () => {
       setAppState("done");
     } else {
       setAppState("error");
-      setErrorMsg(t(locale, "generateFailed"));
+      // We will rely on the useEffect below to set the actual error message
     }
   }, [submitAndPoll, locale]);
+
+  // Update error message when aiError changes
+  useEffect(() => {
+    if (aiError) {
+      setErrorMsg(aiError);
+    } else if (appState === "error" && !errorMsg) {
+      setErrorMsg(t(locale, "generateFailed"));
+    }
+  }, [aiError, appState, locale, errorMsg]);
   const processImage = useCallback(async (file: File) => {
     setAppState("uploading");
     setErrorMsg("");
