@@ -8,24 +8,16 @@ The AI model we are using (`google/gemini-3.1-flash-image-preview`) has a strict
 
 ## Solution
 
-Since we **must** use this specific AI model (as per the system reminder), and the AI model **forces** fixed ratios, the only way to guarantee the output has the EXACT same dimensions and crop as the uploaded image is to handle it on the frontend using Canvas:
+Since we **must** use this specific AI model (as per the system reminder), and the AI model **forces** fixed ratios, we will:
 
-### 1. Pre-processing (Padding)
+### 1. Calculate the closest supported AI ratio
 Before uploading the image to the AI:
 - Calculate the closest supported AI ratio (e.g., `3:4`).
-- Create a Canvas with that exact `3:4` ratio.
-- Draw the user's original image in the center of this Canvas, padding the empty space with a solid color (e.g., white).
-- Upload this padded image to the AI.
-*This ensures the AI receives an image that perfectly matches its required ratio, so it won't crop the actual photo content.*
+- Pass this ratio to the AI model.
 
-### 2. Post-processing (Cropping)
-After the AI generates the "big head" image:
-- Download the AI-generated image.
-- Draw it onto a new Canvas that has the **exact dimensions of the user's original uploaded image**.
-- This effectively crops out the padding we added in step 1.
-- Display this final cropped image to the user.
+*(Per user request, we will NOT implement the Canvas padding/cropping workaround, and will ONLY implement the ratio calculation and prompt update).*
 
-### 3. Ultra-Strict Prompt
+### 2. Ultra-Strict Prompt
 Update the prompt to be extremely explicit about acting as a photo editor, not a generative artist.
 
 ```typescript
@@ -44,6 +36,6 @@ CRITICAL INSTRUCTIONS:
 - `src/pages/Index.tsx`
 
 ## Verification
-- Upload an image with an arbitrary ratio (e.g., 2:3).
-- The final displayed result will have the exact same 2:3 ratio.
+- Upload an image.
+- The AI will use the closest supported ratio.
 - The face will remain identical, and no extra body parts will be added.
