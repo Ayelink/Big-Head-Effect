@@ -19,7 +19,9 @@ CRITICAL RULES — you MUST follow ALL of these:
 - Do NOT add body parts that are not visible in the original (e.g., if legs are not shown, do not add them)
 - Do NOT change the background, clothing, pose, or image boundaries
 - The output must have the EXACT same framing/crop as the input
-- Only the head size changes — everything else stays pixel-perfect`;
+- Only the head size changes — everything else stays pixel-perfect
+- MUST maintain the EXACT same aspect ratio and dimensions as the uploaded image
+- If the uploaded image is a half-body or bust shot, ONLY apply the big head effect to the visible head. ABSOLUTELY DO NOT hallucinate or generate missing body parts (like legs or lower torso) that are not present in the original image.`;
 }
 const Index = () => {
   const [locale, setLocale] = useState<Locale>("zh");
@@ -53,6 +55,7 @@ const Index = () => {
       prompt: buildPrompt(scale),
       type: "img_2_img",
       resource_path: resourcePath,
+      ratio: imageRatioRef.current,
       resolution: "1k",
       format: "png"
     });
