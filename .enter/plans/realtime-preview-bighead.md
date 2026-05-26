@@ -1,30 +1,36 @@
-# Fix: Restore ratio parameter and enhance prompt for strict fidelity
+# Fix: Strict Image Fidelity and Ratio Preservation
 
 ## Context
-The AI model is changing the aspect ratio of the output (e.g., turning a square image into a 3:4 portrait) and "inventing" body parts that weren't in the original photo.
+The user is experiencing two issues with the AI-generated "big head" effect:
+1. **Ratio/Cropping**: The generated image has a different aspect ratio or crop compared to the original.
+2. **Fidelity/Hallucination**: The AI alters the person's face, changes the background, or hallucinates body parts (like adding a full body to a half-body shot).
+
+## Root Cause
+1. **Ratio**: The AI model (`google/gemini-3.1-flash-image-preview`) only supports specific aspect ratios (16:9, 4:3, 1:1, 3:4, 9:16). If the uploaded image doesn't perfectly match one of these, the AI crops it.
+2. **Fidelity**: Generative AI models naturally want to "redraw" the whole image. Even with strict prompts, they struggle to keep exact pixel fidelity.
 
 ## Solution
 
-### 1. Restore the `ratio` parameter
-The `ratio` parameter was removed in the previous step, which caused the AI to default to its own ratio. We need to pass `ratio: imageRatioRef.current` back into the `submitAndPoll` call so the API knows the exact aspect ratio to generate.
+### 1. Fix the Ratio Issue (Canvas Padding/Cropping)
+Since the AI only accepts fixed ratios, we must handle the ratio mismatch on the frontend:
+- **Pre-process**: Before uploading, draw the user's image onto a Canvas that exactly matches the closest supported AI ratio (e.g., 3:4). Pad the extra space with a solid color (e.g., white).
+- **Post-process**: After the AI generates the image, draw it back onto a Canvas and crop out the padding, restoring the exact original dimensions.
+*(Alternatively, we can just accept the closest ratio but ensure the prompt strictly forbids zooming out or changing the composition).*
 
-### 2. Enhance the Prompt
-Update the `buildPrompt` function to explicitly forbid changing the aspect ratio and inventing body parts.
+Let's try a simpler approach first: The AI is likely zooming out to fit the new ratio. We will instruct it to maintain the exact scale.
+
+### 2. Ultra-Strict Prompting
+We need to frame the prompt not as a "transformation" but as a "photoshop edit".
 
 ```typescript
 function buildPrompt(scale: number): string {
-  return `Edit this photo with ONLY the following change: scale up the person's entire head (skull, face, and hair) to ${scale}x its current size, keeping it centered on the same neck position.
+  return `You are a strict photo editing tool. Your ONLY task is to enlarge the head in this photo.
 
-CRITICAL RULES — you MUST follow ALL of these:
-- The face must remain IDENTICAL: same person, same angle, same expression, same lighting, same skin texture
-- Hair must scale proportionally with the head
-- Do NOT modify, crop, extend, or reimagine ANY other part of the image
-- Do NOT add body parts that are not visible in the original (e.g., if legs are not shown, do not add them)
-- Do NOT change the background, clothing, pose, or image boundaries
-- The output must have the EXACT same framing/crop as the input
-- Only the head size changes — everything else stays pixel-perfect
-- MUST maintain the EXACT same aspect ratio and dimensions as the uploaded image
-- If the uploaded image is a half-body or bust shot, ONLY apply the big head effect to the visible head. ABSOLUTELY DO NOT hallucinate or generate missing body parts (like legs or lower torso) that are not present in the original image.`;
+CRITICAL INSTRUCTIONS:
+1. SCALE ONLY THE HEAD: Enlarge the head and hair to ${scale}x size.
+2. ZERO OTHER CHANGES: The face identity, expression, glasses, lighting, and skin MUST remain 100% identical to the original. Do not redraw or alter the face.
+3. NO HALLUCINATIONS: If this is a half-body or bust shot, keep it exactly as a half-body or bust shot. DO NOT add legs, lower body, or any parts not visible in the original.
+4. EXACT COMPOSITION: Keep the exact same background, hands, clothing, and framing. Do not zoom out. Do not change the image boundaries.`;
 }
 ```
 
@@ -32,5 +38,5 @@ CRITICAL RULES — you MUST follow ALL of these:
 - `src/pages/Index.tsx`
 
 ## Verification
-- Upload a square half-body image → output should remain square and half-body
-- No extra body parts should be generated
+- Upload the provided image (man with phones).
+- The output should have the exact same face, no extra body parts, and the same relative framing.
