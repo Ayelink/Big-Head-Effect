@@ -10,15 +10,16 @@ interface HistoryItem {
   label: string;
 }
 function buildPrompt(scale: number): string {
-  const bodyRatio = Math.round((1 - (scale - 1) * 0.15) * 100);
-  return `Transform this photo into a "big head small body" caricature effect:
-- Enlarge the person's head to approximately ${scale}x its original size
-- Shrink the body to about ${bodyRatio}% of its original height
-- Keep the face details, expression, and features clear and recognizable
-- Maintain the original background and clothing
-- The result should look like a cute, funny bobblehead or chibi-style caricature
-- Keep the person's feet at the same position, compress the body from top
-- The enlarged head should be seamlessly connected to the smaller body`;
+  return `Edit this photo with ONLY the following change: scale up the person's entire head (skull, face, and hair) to ${scale}x its current size, keeping it centered on the same neck position.
+
+CRITICAL RULES — you MUST follow ALL of these:
+- The face must remain IDENTICAL: same person, same angle, same expression, same lighting, same skin texture
+- Hair must scale proportionally with the head
+- Do NOT modify, crop, extend, or reimagine ANY other part of the image
+- Do NOT add body parts that are not visible in the original (e.g., if legs are not shown, do not add them)
+- Do NOT change the background, clothing, pose, or image boundaries
+- The output must have the EXACT same framing/crop as the input
+- Only the head size changes — everything else stays pixel-perfect`;
 }
 const Index = () => {
   const [locale, setLocale] = useState<Locale>("zh");
@@ -52,7 +53,6 @@ const Index = () => {
       prompt: buildPrompt(scale),
       type: "img_2_img",
       resource_path: resourcePath,
-      ratio: imageRatioRef.current,
       resolution: "1k",
       format: "png"
     });
