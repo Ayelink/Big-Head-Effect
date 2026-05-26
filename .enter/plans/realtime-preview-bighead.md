@@ -1,41 +1,35 @@
-# Fix: Exact Image Ratio and Fidelity
+# Fix Aspect Ratio Cropping Issue
 
 ## Context
-The user is asking why we can't just use the exact uploaded image ratio, and why there are ratio restrictions. They also want strict fidelity (no face changes, no hallucinated body parts).
+The user is experiencing image cropping after the AI generation. 
 
-## Root Cause
-The AI model we are using (`google/gemini-3.1-flash-image-preview`) has a strict API limitation: it **only accepts specific predefined ratio strings** (`1:1`, `4:3`, `3:4`, `16:9`, `9:16`, `21:9`). If we pass an arbitrary ratio (like `2:3` or `original`), the API will reject it or default to `1:1`. Because the AI forces the output into one of these fixed ratios, it ends up cropping or padding the original image, which changes the composition.
+**The Root Cause:**
+The AI model (`google/gemini-3.1-flash-image-preview`) strictly requires specific aspect ratios (`16:9`, `4:3`, `1:1`, `3:4`, `9:16`). 
+If an uploaded image has a custom ratio (e.g., `2:3`), we currently calculate the closest supported ratio (e.g., `3:4`) and tell the AI to use it. 
+Because the AI is forced to output `3:4`, it automatically crops the original `2:3` image to fit the new `3:4` bounding box. This is a hard limitation of the AI model itself—it cannot output arbitrary dimensions.
 
-## Solution
+## Proposed Solution: The "Pad and Crop" Workaround
+Since the AI model cannot handle custom ratios, we must handle it on the frontend using Canvas.
 
-Since we **must** use this specific AI model (as per the system reminder), and the AI model **forces** fixed ratios, we will:
-
-### 1. Calculate the closest supported AI ratio
-Before uploading the image to the AI:
-- Calculate the closest supported AI ratio (e.g., `3:4`).
-- Pass this ratio to the AI model.
-
-*(Per user request, we will NOT implement the Canvas padding/cropping workaround, and will ONLY implement the ratio calculation and prompt update).*
-
-### 2. Ultra-Strict Prompt
-Update the prompt to be extremely explicit about acting as a photo editor, not a generative artist.
-
-```typescript
-function buildPrompt(scale: number): string {
-  return `You are a strict photo editing tool. Your ONLY task is to enlarge the head in this photo.
-
-CRITICAL INSTRUCTIONS:
-1. SCALE ONLY THE HEAD: Enlarge the head and hair to ${scale}x size.
-2. ZERO OTHER CHANGES: The face identity, expression, glasses, lighting, and skin MUST remain 100% identical to the original. Do not redraw or alter the face.
-3. NO HALLUCINATIONS: If this is a half-body or bust shot, keep it exactly as a half-body or bust shot. DO NOT add legs, lower body, or any parts not visible in the original.
-4. EXACT COMPOSITION: Keep the exact same background, hands, clothing, and framing. Do not zoom out. Do not change the image boundaries.`;
-}
-```
+1. **Before AI (Padding)**: 
+   - Calculate the closest supported AI ratio.
+   - Draw the original image onto a Canvas that exactly matches that supported ratio.
+   - Fill the empty space (padding) with a solid color (e.g., white or black).
+   - Upload this *padded* image to the AI.
+2. **AI Generation**:
+   - The AI receives an image that is *already* in its supported ratio. It will not crop anything. It will just enlarge the head.
+3. **After AI (Cropping)**:
+   - Download the AI-generated image.
+   - Draw it onto a Canvas.
+   - Crop out the padding we added in Step 1, restoring the image to its *exact original dimensions*.
+   - Display this final image to the user.
 
 ## Files to Modify
-- `src/pages/Index.tsx`
+- `src/pages/Index.tsx`: 
+  - Add a utility function to pad the image before upload.
+  - Add a utility function to crop the image after generation.
+  - Update the `processImage` and `generateWithScale` flows to use these utilities.
 
 ## Verification
-- Upload an image.
-- The AI will use the closest supported ratio.
-- The face will remain identical, and no extra body parts will be added.
+- Upload an image with an extreme custom ratio (e.g., a very tall panorama).
+- Verify that the final generated image has the exact same pixel dimensions as the original upload, with no content cropped out.
