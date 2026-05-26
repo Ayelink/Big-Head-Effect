@@ -1,25 +1,30 @@
 # Investigate and Fix Generation Failures
 
 ## Context
-The user reported that there are many cases where the image generation fails. Currently, the application hides the actual error message returned by the AI API and only shows a generic "Generation Failed" (生成失败) message. This makes it difficult to know exactly why the AI model is rejecting the request.
+The user reported an increase in image generation failures after the recent aspect ratio cropping update. 
 
-**Why is this happening more frequently now?**
-In the previous step, we added logic to automatically crop non-standard images (e.g., `2:3`) to the closest standard ratio (e.g., `3:4`) using the HTML5 Canvas API. 
-When calculating the new dimensions, the math (`w / targetRatioValue`) often results in **floating-point numbers** (e.g., `1080.3333px`). 
-Passing floating-point dimensions to the Canvas API or uploading an image with fractional pixels can cause the image encoding to fail or be rejected by the AI backend. Before this change, we were uploading the raw file directly, which always had integer dimensions.
+**Root Causes:**
+1. **Floating-Point Pixels (Primary Bug)**: The math used to calculate the new cropped dimensions (`w / targetRatioValue`) often results in decimal numbers (e.g., `1333.33px`). HTML5 Canvas requires integer pixel values. Passing decimals causes the Canvas to generate corrupted or invalid image blobs, which the AI backend rejects.
+2. **Prompt Safety Filters**: The recent prompt update included the phrase "bust shot". AI models have extremely strict safety filters, and words like "bust" can sometimes trigger false-positive NSFW blocks, causing the generation to fail silently.
 
 ## Proposed Solution
 
-### 1. Fix Canvas Dimensions (Integer Values)
-We will update the `prepareImageFile` function in `Index.tsx` to use `Math.round()` for all canvas dimensions. This ensures the cropped image always has valid, whole-number pixel dimensions.
+We will fix the root causes directly, while also improving error visibility just in case.
 
-### 2. Expose the Actual Error Message
-We will update `Index.tsx` to read the `error` state from the `useAIImage` hook. If the generation fails, we will display the exact error message returned by the backend (e.g., "Prompt violates safety policy" or "Image too large"). This will immediately tell us what is wrong if failures continue.
+### 1. Fix Canvas Math (Integer Dimensions)
+We will update the `prepareImageFile` function in `Index.tsx` to use `Math.round()` for all calculated dimensions (`targetW`, `targetH`, `offsetX`, `offsetY`). This guarantees the cropped image is a valid, whole-pixel image.
+
+### 2. Soften Prompt Vocabulary
+We will replace potentially sensitive words in the prompt (like "bust shot") with safer alternatives (like "upper body portrait") to avoid triggering the AI's safety filters.
+
+### 3. Expose the Actual Error Message
+We will update `Index.tsx` to read the `error` state from the `useAIImage` hook. If a generation fails, we will display the exact error message returned by the backend (e.g., "Prompt violates safety policy" or "Image too large") instead of a generic "Generation Failed". This ensures we never have to guess why a failure happened again.
 
 ## Files to Modify
 - `src/pages/Index.tsx`:
-  - Update `prepareImageFile` to include `Math.round` for `targetW` and `targetH`.
-  - Update the `generateWithScale` function to use the `error` state from `useAIImage` instead of the generic `t(locale, "generateFailed")`.
+  - Update `prepareImageFile` to include `Math.round` for all canvas calculations.
+  - Update `buildPrompt` to use safer vocabulary.
+  - Update `generateWithScale` to use the `error` state from `useAIImage`.
 
 ## Verification
-After these changes, the floating-point pixel issue will be resolved. If a generation still fails, the UI will display the exact reason, allowing us to debug further.
+After these changes, the floating-point bug will be fixed, and safety filter false-positives will be reduced. If any image still fails, the UI will explicitly state the reason.
