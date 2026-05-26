@@ -18,6 +18,79 @@ CRITICAL INSTRUCTIONS:
 3. NO HALLUCINATIONS: If this is a half-body or bust shot, keep it exactly as a half-body or bust shot. DO NOT add legs, lower body, or any parts not visible in the original.
 4. EXACT COMPOSITION: Keep the exact same background, hands, clothing, and framing. Do not zoom out. Do not change the image boundaries.`;
 }
+const STANDARD_RATIOS = [
+  { name: "16:9", value: 16 / 9 },
+  { name: "9:16", value: 9 / 16 },
+  { name: "4:3", value: 4 / 3 },
+  { name: "3:4", value: 3 / 4 },
+  { name: "3:2", value: 3 / 2 },
+  { name: "2:3", value: 2 / 3 },
+  { name: "1:1", value: 1 },
+];
+
+async function prepareImageFile(file: File): Promise<{ file: File, ratio: string, originalUrl: string }> {
+  return new Promise((resolve, reject) => {
+    const originalUrl = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      const w = img.naturalWidth;
+      const h = img.naturalHeight;
+      const r = w / h;
+      
+      let closestRatio = STANDARD_RATIOS[0];
+      let minDiff = Math.abs(r - closestRatio.value);
+      
+      for (let i = 1; i < STANDARD_RATIOS.length; i++) {
+        const diff = Math.abs(r - STANDARD_RATIOS[i].value);
+        if (diff < minDiff) {
+          minDiff = diff;
+          closestRatio = STANDARD_RATIOS[i];
+        }
+      }
+      
+      if (minDiff <= 0.05) {
+        resolve({ file, ratio: closestRatio.name, originalUrl });
+        return;
+      }
+      
+      const targetRatioValue = closestRatio.value;
+      let targetW = w;
+      let targetH = h;
+      
+      if (r > targetRatioValue) {
+        targetW = h * targetRatioValue;
+      } else {
+        targetH = w / targetRatioValue;
+      }
+      
+      const canvas = document.createElement("canvas");
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        resolve({ file, ratio: closestRatio.name, originalUrl });
+        return;
+      }
+      
+      const offsetX = (w - targetW) / 2;
+      const offsetY = (h - targetH) / 2;
+      
+      ctx.drawImage(img, offsetX, offsetY, targetW, targetH, 0, 0, targetW, targetH);
+      
+      canvas.toBlob((blob) => {
+        if (blob) {
+          const croppedFile = new File([blob], file.name, { type: file.type });
+          resolve({ file: croppedFile, ratio: closestRatio.name, originalUrl: URL.createObjectURL(croppedFile) });
+        } else {
+          resolve({ file, ratio: closestRatio.name, originalUrl });
+        }
+      }, file.type);
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = originalUrl;
+  });
+}
+
 const Index = () => {
   const [locale, setLocale] = useState<Locale>("zh");
   const [langOpen, setLangOpen] = useState(false);
@@ -79,40 +152,28 @@ const Index = () => {
     setHistoryImages([]);
     setSelectedIndex(0);
 
-    // Detect image aspect ratio
-    const originalUrl = URL.createObjectURL(file);
-    const detectedRatio = await new Promise<string>((resolve) => {
-      const img = new Image();
-      img.onload = () => {
-        const w = img.naturalWidth;
-        const h = img.naturalHeight;
-        const r = w / h;
-        // Match to closest supported ratio
-        if (r >= 1.6) resolve("16:9");
-        else if (r >= 1.2) resolve("4:3");
-        else if (r >= 0.9) resolve("1:1");
-        else if (r >= 0.7) resolve("3:4");
-        else resolve("9:16");
-      };
-      img.onerror = () => resolve("3:4");
-      img.src = originalUrl;
-    });
-    imageRatioRef.current = detectedRatio;
+    try {
+      const { file: processedFile, ratio, originalUrl } = await prepareImageFile(file);
+      imageRatioRef.current = ratio;
 
-    const resourcePath = await uploadFile(file);
-    if (!resourcePath) {
+      const resourcePath = await uploadFile(processedFile);
+      if (!resourcePath) {
+        setAppState("error");
+        setErrorMsg(t(locale, "uploadFailed"));
+        return;
+      }
+
+      originalPreviewRef.current = originalUrl;
+      setHistoryImages([{
+        url: originalUrl,
+        label: t(locale, "original")
+      }]);
+      lastResourcePathRef.current = resourcePath;
+      await generateWithScale(resourcePath, headScale);
+    } catch (err) {
       setAppState("error");
       setErrorMsg(t(locale, "uploadFailed"));
-      return;
     }
-
-    originalPreviewRef.current = originalUrl;
-    setHistoryImages([{
-      url: originalUrl,
-      label: t(locale, "original")
-    }]);
-    lastResourcePathRef.current = resourcePath;
-    await generateWithScale(resourcePath, headScale);
   }, [uploadFile, generateWithScale, headScale, locale]);
   const handleRegenerate = useCallback(() => {
     if (lastResourcePathRef.current) {
