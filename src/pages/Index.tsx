@@ -183,7 +183,7 @@ const Index = () => {
       <main className="flex-1 flex flex-col px-5 pb-5 gap-section overflow-hidden">
         {appState === "idle" && <div className="flex-1 flex flex-col justify-center gap-element">
             {/* Upload Area */}
-            <div className="flex flex-col items-center py-10 border border-dashed border-light-pebble rounded-[8px]">
+            <div onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center py-10 border border-dashed border-light-pebble rounded-[8px] cursor-pointer active:opacity-70 transition-opacity">
               <ImagePlus className="w-10 h-10 text-charcoal-gray mb-3" />
               <p className="text-[14px] text-muted-foreground tracking-[-0.28px]">
                 {t(locale, "fileTip")}
