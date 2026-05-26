@@ -10,18 +10,13 @@ interface HistoryItem {
   label: string;
 }
 function buildPrompt(scale: number): string {
-  return `Edit this photo with ONLY the following change: scale up the person's entire head (skull, face, and hair) to ${scale}x its current size, keeping it centered on the same neck position.
+  return `You are a strict photo editing tool. Your ONLY task is to enlarge the head in this photo.
 
-CRITICAL RULES — you MUST follow ALL of these:
-- The face must remain IDENTICAL: same person, same angle, same expression, same lighting, same skin texture
-- Hair must scale proportionally with the head
-- Do NOT modify, crop, extend, or reimagine ANY other part of the image
-- Do NOT add body parts that are not visible in the original (e.g., if legs are not shown, do not add them)
-- Do NOT change the background, clothing, pose, or image boundaries
-- The output must have the EXACT same framing/crop as the input
-- Only the head size changes — everything else stays pixel-perfect
-- MUST maintain the EXACT same aspect ratio and dimensions as the uploaded image
-- If the uploaded image is a half-body or bust shot, ONLY apply the big head effect to the visible head. ABSOLUTELY DO NOT hallucinate or generate missing body parts (like legs or lower torso) that are not present in the original image.`;
+CRITICAL INSTRUCTIONS:
+1. SCALE ONLY THE HEAD: Enlarge the head and hair to ${scale}x size.
+2. ZERO OTHER CHANGES: The face identity, expression, glasses, lighting, and skin MUST remain 100% identical to the original. Do not redraw or alter the face.
+3. NO HALLUCINATIONS: If this is a half-body or bust shot, keep it exactly as a half-body or bust shot. DO NOT add legs, lower body, or any parts not visible in the original.
+4. EXACT COMPOSITION: Keep the exact same background, hands, clothing, and framing. Do not zoom out. Do not change the image boundaries.`;
 }
 const Index = () => {
   const [locale, setLocale] = useState<Locale>("zh");
