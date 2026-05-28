@@ -4,6 +4,7 @@ import { useResourceUpload } from "@/hooks/useResourceUpload";
 import { useAIImage } from "@/hooks/useAIImage";
 import { Slider } from "@/components/ui/slider";
 import { type Locale, t } from "@/lib/i18n";
+import { trackEvent } from "@enter-pro/analytics-sdk";
 type AppState = "idle" | "uploading" | "generating" | "done" | "error";
 interface HistoryItem {
   url: string;
@@ -143,6 +144,10 @@ const Index = () => {
       setAppState("done");
     } else {
       setAppState("error");
+      trackEvent("generation_failed", {
+        eventType: "custom",
+        properties: { scale }
+      });
       // We will rely on the useEffect below to set the actual error message
     }
   }, [submitAndPoll, locale]);
@@ -170,6 +175,10 @@ const Index = () => {
       if (!resourcePath) {
         setAppState("error");
         setErrorMsg(t(locale, "uploadFailed"));
+        trackEvent("upload_failed", {
+          eventType: "custom",
+          properties: { error_message: "No resource path returned" }
+        });
         return;
       }
 
@@ -183,9 +192,17 @@ const Index = () => {
     } catch (err) {
       setAppState("error");
       setErrorMsg(t(locale, "uploadFailed"));
+      trackEvent("upload_failed", {
+        eventType: "custom",
+        properties: { error_message: String(err) }
+      });
     }
   }, [uploadFile, generateWithScale, headScale, locale]);
   const handleRegenerate = useCallback(() => {
+    trackEvent("button_click", {
+      eventType: "custom",
+      properties: { action_type: "regenerate_click" }
+    });
     if (lastResourcePathRef.current) {
       generateWithScale(lastResourcePathRef.current, headScale);
     }
@@ -196,6 +213,10 @@ const Index = () => {
     e.target.value = "";
   };
   const handleReset = () => {
+    trackEvent("button_click", {
+      eventType: "custom",
+      properties: { action_type: "change_photo_click" }
+    });
     setAppState("idle");
     setResultImageUrl("");
     setErrorMsg("");
@@ -212,6 +233,10 @@ const Index = () => {
     setResultImageUrl(historyImages[index].url);
   };
   const toggleLang = (l: Locale) => {
+    trackEvent("button_click", {
+      eventType: "custom",
+      properties: { action_type: "language_switch", language: l }
+    });
     setLocale(l);
     setLangOpen(false);
   };
@@ -252,7 +277,10 @@ const Index = () => {
       <main className="flex-1 flex flex-col px-5 pb-5 gap-section overflow-hidden">
         {appState === "idle" && <div className="flex-1 flex flex-col justify-center gap-element">
             {/* Upload Area */}
-            <div onClick={() => fileInputRef.current?.click()} className="flex flex-col items-center py-10 border border-dashed border-light-pebble rounded-[8px] cursor-pointer active:opacity-70 transition-opacity">
+            <div onClick={() => {
+              trackEvent("button_click", { eventType: "custom", properties: { action_type: "upload_click" } });
+              fileInputRef.current?.click();
+            }} className="flex flex-col items-center py-10 border border-dashed border-light-pebble rounded-[8px] cursor-pointer active:opacity-70 transition-opacity">
               <ImagePlus className="w-10 h-10 text-charcoal-gray mb-3" />
               <p className="text-[14px] text-muted-foreground tracking-[-0.28px]">
                 {t(locale, "fileTip")}
@@ -280,11 +308,17 @@ const Index = () => {
 
             {/* Buttons */}
             <div className="flex gap-element">
-              <button onClick={() => fileInputRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
+              <button onClick={() => {
+                trackEvent("button_click", { eventType: "custom", properties: { action_type: "upload_click" } });
+                fileInputRef.current?.click();
+              }} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
                 <ImagePlus className="w-[18px] h-[18px]" />
                 {t(locale, "uploadBtn")}
               </button>
-              <button onClick={() => cameraInputRef.current?.click()} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
+              <button onClick={() => {
+                trackEvent("button_click", { eventType: "custom", properties: { action_type: "camera_click" } });
+                cameraInputRef.current?.click();
+              }} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
                 <Camera className="w-[18px] h-[18px]" />
                 {t(locale, "cameraBtn")}
               </button>
@@ -359,7 +393,9 @@ const Index = () => {
                 <RefreshCw className="w-4 h-4" />
                 {t(locale, "changePhoto")}
               </button>
-              <a href={resultImageUrl} target="_blank" rel="noopener noreferrer" className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] bg-foreground text-background font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
+              <a href={resultImageUrl} target="_blank" rel="noopener noreferrer" onClick={() => {
+                trackEvent("button_click", { eventType: "custom", properties: { action_type: "download_click" } });
+              }} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] bg-foreground text-background font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
                 <Download className="w-4 h-4" />
                 {t(locale, "viewFull")}
               </a>
