@@ -19,6 +19,10 @@ If a paid download feature is added later, the flow would simply be:
 4. If paid -> Execute the exact same programmatic download function we are about to build.
 The actual mechanism of saving the file to the device is completely decoupled from the business logic of checking payment status.
 
+### 3. Image Retention Time
+The user asked how long the generated images are kept in the H5 interface before being cleared.
+- **Current State**: The images are stored in React state (`historyImages`). This means they are kept **only in memory**. If the user refreshes the page, closes the browser tab, or kills the app (e.g., swiping away WeChat), the state is completely cleared immediately. There is no persistence (like LocalStorage or IndexedDB) implemented for the history.
+
 ## Proposed Solution
 
 We will replace the `<a>` tag with a `<button>` and implement a programmatic download function.
