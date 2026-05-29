@@ -102,6 +102,7 @@ const Index = () => {
   const [headScale, setHeadScale] = useState(2.0);
   const [historyImages, setHistoryImages] = useState<HistoryItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
+  const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const lastResourcePathRef = useRef<string | null>(null);
@@ -242,6 +243,7 @@ const Index = () => {
     if (!resultImageUrl) return;
     
     try {
+      setIsPaymentLoading(true);
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: {
           productId: 'prod_UbZspMg8kOssPb',
@@ -258,6 +260,8 @@ const Index = () => {
     } catch (error) {
       console.error("Payment failed:", error);
       alert(t(locale, "generateFailed")); // Reusing error message for now
+    } finally {
+      setIsPaymentLoading(false);
     }
   };
 
@@ -458,9 +462,9 @@ const Index = () => {
                 <RefreshCw className="w-4 h-4" />
                 {t(locale, "changePhoto")}
               </button>
-              <button onClick={handleDownload} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] bg-foreground text-background font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
-                <Download className="w-4 h-4" />
-                {t(locale, "viewFull")}
+              <button onClick={handleDownload} disabled={isPaymentLoading} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] bg-foreground text-background font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity disabled:opacity-50">
+                {isPaymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
+                {isPaymentLoading ? t(locale, "uploading") : t(locale, "viewFull")}
               </button>
             </div>
           </div>}
