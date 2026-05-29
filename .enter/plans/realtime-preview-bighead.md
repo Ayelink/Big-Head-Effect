@@ -1,38 +1,42 @@
-# Implement Analytics Tracking
+# Implement Mobile-Friendly Image Download
 
 ## Context
-The user wants to track user behavior and error rates to understand how the application is being used. Specifically, we need to track:
-1. Page views (handled automatically by the SDK).
-2. Users with interaction (can be derived from button clicks).
-3. Button clicks (Upload, Camera, Regenerate, Change Photo, Download, Language Switch).
-4. Upload failures.
-5. AI generation failures.
+The user wants to ensure that clicking the "Download" (查看原图/下载) button on mobile devices allows for a one-click save to the photo album, rather than just opening the image in a new browser tab (which is the current behavior using `<a href="..." target="_blank">`). 
+Additionally, the user asked if this one-click download approach would conflict with a future "paid download" feature.
+
+## Analysis
+
+### 1. Current Behavior vs. Desired Behavior
+- **Current**: `<a href={resultImageUrl} target="_blank" download>` opens the image URL in a new tab. On mobile browsers (like Safari or WeChat), this often just displays the image, requiring the user to long-press and select "Save Image".
+- **Desired**: Clicking the button should programmatically fetch the image blob and trigger a forced download prompt, which on mobile usually pops up a "Download" or "Save to Photos" dialog directly.
+
+### 2. Conflict with Future Paid Downloads?
+**No, there is no conflict.** 
+If a paid download feature is added later, the flow would simply be:
+1. User clicks "Download".
+2. App checks if the user has paid (or has credits).
+3. If not paid -> Show payment modal.
+4. If paid -> Execute the exact same programmatic download function we are about to build.
+The actual mechanism of saving the file to the device is completely decoupled from the business logic of checking payment status.
 
 ## Proposed Solution
 
-We will use the `@enter-pro/analytics-sdk` to instrument the application. I have already registered the necessary custom events in the backend:
-- `button_click`
-- `upload_failed`
-- `generation_failed`
-
-We will add imperative tracking (`trackEvent`) to the event handlers in `src/pages/Index.tsx`.
+We will replace the `<a>` tag with a `<button>` and implement a programmatic download function.
 
 ### Implementation Details
-1. **Import SDK**: Import `trackEvent` from `@enter-pro/analytics-sdk` in `src/pages/Index.tsx`.
-2. **Track Button Clicks**:
-   - Upload Area / Upload Button: `trackEvent('button_click', { eventType: 'custom', properties: { action_type: 'upload_click' } })`
-   - Camera Button: `trackEvent('button_click', { eventType: 'custom', properties: { action_type: 'camera_click' } })`
-   - Regenerate Button: `trackEvent('button_click', { eventType: 'custom', properties: { action_type: 'regenerate_click' } })`
-   - Change Photo Button: `trackEvent('button_click', { eventType: 'custom', properties: { action_type: 'change_photo_click' } })`
-   - View Full (Download) Link: `trackEvent('button_click', { eventType: 'custom', properties: { action_type: 'download_click' } })`
-   - Language Switcher: `trackEvent('button_click', { eventType: 'custom', properties: { action_type: 'language_switch', language: l } })`
-3. **Track Failures**:
-   - In `processImage` catch block: `trackEvent('upload_failed', { eventType: 'custom', properties: { error_message: String(err) } })`
-   - In `generateWithScale` error block: `trackEvent('generation_failed', { eventType: 'custom', properties: { scale } })` (We will also track the specific error message if available).
+1. **Create `handleDownload` function**:
+   - Fetch the image from `resultImageUrl` using `fetch()`.
+   - Convert the response to a `Blob`.
+   - Create a temporary object URL (`URL.createObjectURL(blob)`).
+   - Create a hidden `<a>` element, set its `href` to the blob URL, and set the `download` attribute to a generated filename (e.g., `bighead-effect.png`).
+   - Programmatically click the hidden `<a>` element.
+   - Clean up the object URL.
+2. **Update UI**:
+   - Change the "View Full" `<a>` tag to a `<button onClick={handleDownload}>`.
+   - Keep the existing analytics tracking (`trackEvent`).
 
 ## Files to Modify
-- `src/pages/Index.tsx`: Add `trackEvent` calls to the respective handlers.
+- `src/pages/Index.tsx`: Add `handleDownload` and update the download button.
 
 ## Verification
-- Click various buttons and verify in the network tab that a `POST` request is sent to `/v1/track` with the correct event payload.
-- Simulate an upload or generation failure and verify the failure events are tracked.
+- On a mobile device (or simulator), clicking the download button should trigger the browser's native download/save dialog instead of opening a new tab.
