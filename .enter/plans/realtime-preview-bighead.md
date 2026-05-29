@@ -1,43 +1,51 @@
-# 持久化图片记录（防止支付返回后记录丢失）
+# 修复：移动端记录持久化 + 支付弹窗适配 + 生成失败问题排查
 
-## 背景 (Context)
-在移动端，用户点击"去付款"后，Stripe 支付页面会在新的浏览器标签页或 WebView 中打开，支付完成返回时，部分浏览器（尤其是 iOS Safari 和微信内置浏览器）会**重新加载页面**，导致 React 内存状态（`useState`）全部清空，生成的图片记录消失。
+## 一、上传/生成失败原因分析
 
-## 根本原因
-所有状态（`historyImages`, `resultImageUrl`, `appState` 等）都存储在 React 的内存中（`useState`），页面重新加载时全部丢失。
+**数据：**
+- `upload_failed` 埋点：过去 7 天 **0 次** → 上传本身没有失败
+- `generation_failed` 埋点：今天（05/29）**3 次** → AI 生成步骤失败
 
-## 解决方案：SessionStorage 持久化
+**根因 1：Canvas 编码类型错误（移动端图片上传失败的核心 Bug）**
+在 `prepareImageFile` 函数中，进行裁切时调用了 `canvas.toBlob(blob, file.type)`。
+- 如果用户从 iOS 相机上传 **HEIC/HEIF 格式**的图片，`file.type` 会是 `image/heic`。
+- 大多数浏览器的 Canvas API **不支持** 将图像编码成 HEIC 格式，`canvas.toBlob()` 会返回 `null`。
+- 虽然代码有 `null` 的回退逻辑，但回退到的是原始 HEIC 文件，而 `useResourceUpload.ts` 中的文件类型校验不允许 HEIC 文件，导致最终上传失败。
+- **修复**：将 `canvas.toBlob()` 的格式固定为 `image/jpeg`，覆盖 `file.type`，同时将生成的文件后缀名改为 `.jpg`。
 
-使用 `sessionStorage` 在浏览器本地临时存储关键状态。
-- **为什么用 sessionStorage 而非 localStorage**：`sessionStorage` 在用户关闭标签页时自动清除，不会留下垃圾数据；同时在同一标签页内跳转返回后依然有效，完全符合我们的需求。
-- **需要持久化的状态**：
-  - `historyImages`（图片记录列表，包含 URL 和标签）
-  - `resultImageUrl`（当前展示的结果图片 URL）
-  - `selectedIndex`（当前选中的历史记录索引）
-  - `lastResourcePath`（用于重新生成）
-  - `imageRatio`（用于重新生成）
-  - `headScale`（放大倍数滑块状态）
-  - `appState`（当前的应用状态，用于恢复到 "done" 页面）
+**根因 2：AI 生成的 Safety Filter**
+3 次 `generation_failed` 是 AI 模型的安全过滤器拦截了某些图片（例如多人合影、某些姿势或场景）。这不是代码 Bug，是模型层面的限制，属于偶发情况。
 
-## 实施细节
+## 二、移动端支付弹窗适配
 
-### 写入时机（Save）
-在每次状态发生变化时，将关键状态写入 sessionStorage：
-- 在 `processImage` 成功后写入。
-- 在每次 `generateWithScale` 成功后写入。
-- 在 `handleReset` 时清除 sessionStorage。
+当前支付确认弹窗（Bottom Sheet）未考虑移动端底部安全区（iOS Home Indicator 区域），导致在新款 iPhone 上按钮可能被遮挡。
+- **修复**：在弹窗底部添加 `pb-safe`（`padding-bottom: env(safe-area-inset-bottom)`）的 safe area padding。
+- 同时确保弹窗的遮罩 `backdrop` 和圆角样式符合移动端习惯。
 
-### 读取时机（Restore）
-在 `Index` 组件挂载时（`useEffect([], [])` 的初始化 effect），从 sessionStorage 读取数据并恢复状态。
+## 三、SessionStorage 持久化（防止支付返回后记录丢失）
 
-### 注意事项
-- `historyImages` 中第一张原图（`originalPreviewRef`）的 URL 可能是 `blob://`（本地对象 URL），这类 URL 在页面刷新后会失效。需要在存储时只保留 AI 生成的结果图（非 blob URL 的图片），或者将原图也作为第一张历史记录的 URL 存储（因为原图也有可能是 OSS 上的真实 URL）。 **实际上**，当前代码中原图的 URL 是 `URL.createObjectURL()` 生成的，刷新后会失效。解决方案是：在恢复时，如果某张图片的 URL 是 blob 开头的，就跳过或用占位符替换。
+**需要持久化的数据：**
+- `historyImages`（历史记录，仅保存非 blob:// 的 URL）
+- `resultImageUrl`（当前展示的生成图 URL）
+- `selectedIndex`（当前选中的历史记录）
+- `lastResourcePath`（用于重新生成）
+- `imageRatio`（比例参数）
+- `headScale`（放大倍数）
+- `appState`（仅持久化 "done" 状态）
+
+**时机：**
+- 写入：`generateWithScale` 成功后写入
+- 读取：组件挂载时（`useEffect([], [])` 初始化）
+- 清除：`handleReset` 时清除
 
 ## 需要修改的文件
-- `src/pages/Index.tsx`：添加 sessionStorage 的读取（初始化）和写入（状态更新时）逻辑
+- `src/pages/Index.tsx`：
+  - 添加 SessionStorage 读取/写入/清除逻辑
+  - 支付弹窗底部添加安全区 padding
+- `src/pages/Index.tsx` 的 `prepareImageFile` 函数：
+  - 将 `canvas.toBlob()` 固定使用 `image/jpeg` 格式
 
 ## 验证方式
-1. 上传图片并生成大头效果。
-2. 点击"下载图片" → 支付弹窗出现后，点击"去付款"跳转到 Stripe。
-3. 关闭 Stripe 页面，返回到应用页面（此时页面会重新加载）。
-4. 应能看到之前生成的图片记录依然存在，应用处于 "done" 状态。
+1. 在 iOS 设备上用相机拍照上传 → 应能正常处理 HEIC 图片
+2. 生成图片后点击下载 → 支付弹窗在 iPhone 底部显示正常，按钮不被遮挡
+3. 点击"去付款"后关闭 Stripe 页面返回 → 之前的生成记录应仍然可见
