@@ -1,51 +1,42 @@
-# 修复：移动端记录持久化 + 支付弹窗适配 + 生成失败问题排查
+# 综合修复：支付方式传参 + 移动端适配 + 记录持久化 + HEIC 图片支持
 
-## 一、上传/生成失败原因分析
+## 一、支付方式选择不生效的根因
 
-**数据：**
-- `upload_failed` 埋点：过去 7 天 **0 次** → 上传本身没有失败
-- `generation_failed` 埋点：今天（05/29）**3 次** → AI 生成步骤失败
+**当前问题**：弹窗中点击"支付宝"，跳转到 Stripe 后只显示信用卡。
+**根因**：我们的支付方式选择是纯 UI 展示，没有将用户的选择传给后端。Stripe 的 `create-checkout-session` 函数未指定 `payment_method_types`，Stripe 默认只展示信用卡。
 
-**根因 1：Canvas 编码类型错误（移动端图片上传失败的核心 Bug）**
-在 `prepareImageFile` 函数中，进行裁切时调用了 `canvas.toBlob(blob, file.type)`。
-- 如果用户从 iOS 相机上传 **HEIC/HEIF 格式**的图片，`file.type` 会是 `image/heic`。
-- 大多数浏览器的 Canvas API **不支持** 将图像编码成 HEIC 格式，`canvas.toBlob()` 会返回 `null`。
-- 虽然代码有 `null` 的回退逻辑，但回退到的是原始 HEIC 文件，而 `useResourceUpload.ts` 中的文件类型校验不允许 HEIC 文件，导致最终上传失败。
-- **修复**：将 `canvas.toBlob()` 的格式固定为 `image/jpeg`，覆盖 `file.type`，同时将生成的文件后缀名改为 `.jpg`。
+**修复方案**：
+- 前端将选中的支付方式（`card` / `alipay` / `wechat_pay`）传入 Edge Function。
+- Edge Function 在创建 Checkout Session 时加入 `payment_method_types` 参数。
+- 支付宝对应：`['alipay']`；微信支付：`['wechat_pay']`；信用卡：`['card']`
 
-**根因 2：AI 生成的 Safety Filter**
-3 次 `generation_failed` 是 AI 模型的安全过滤器拦截了某些图片（例如多人合影、某些姿势或场景）。这不是代码 Bug，是模型层面的限制，属于偶发情况。
+**前置条件（需用户操作）**：必须先在 Stripe Dashboard → Settings → Payment methods 中手动开启 Alipay 和 WeChat Pay，否则创建会话时会报错。
 
-## 二、移动端支付弹窗适配
+## 二、上传/生成失败根因（iOS HEIC 图片）
 
-当前支付确认弹窗（Bottom Sheet）未考虑移动端底部安全区（iOS Home Indicator 区域），导致在新款 iPhone 上按钮可能被遮挡。
-- **修复**：在弹窗底部添加 `pb-safe`（`padding-bottom: env(safe-area-inset-bottom)`）的 safe area padding。
-- 同时确保弹窗的遮罩 `backdrop` 和圆角样式符合移动端习惯。
+在 `prepareImageFile` 中，`canvas.toBlob(blob, file.type)` 使用了原始文件类型。iOS 相机拍摄的图片是 HEIC，浏览器不支持将 Canvas 编码成 HEIC，导致 `toBlob` 返回 `null`，进而回退到原始 HEIC 文件，最终被文件类型校验拒绝。
+**修复**：固定使用 `image/jpeg` 格式，并将文件名后缀改为 `.jpg`。
 
-## 三、SessionStorage 持久化（防止支付返回后记录丢失）
+## 三、移动端支付弹窗适配
 
-**需要持久化的数据：**
-- `historyImages`（历史记录，仅保存非 blob:// 的 URL）
-- `resultImageUrl`（当前展示的生成图 URL）
-- `selectedIndex`（当前选中的历史记录）
-- `lastResourcePath`（用于重新生成）
-- `imageRatio`（比例参数）
-- `headScale`（放大倍数）
-- `appState`（仅持久化 "done" 状态）
+在支付弹窗底部添加 iOS 安全区 padding（`env(safe-area-inset-bottom)`），防止按钮被 iPhone Home Indicator 遮挡。
 
-**时机：**
-- 写入：`generateWithScale` 成功后写入
-- 读取：组件挂载时（`useEffect([], [])` 初始化）
-- 清除：`handleReset` 时清除
+## 四、SessionStorage 持久化（防止支付返回后记录丢失）
+
+- 组件挂载时从 sessionStorage 读取并恢复 `historyImages`, `resultImageUrl`, `selectedIndex`, `lastResourcePath`, `imageRatio`, `headScale`, `appState`。
+- 每次生成成功后写入 sessionStorage。
+- `handleReset` 时清除 sessionStorage。
+- 过滤掉 `blob://` 开头的 URL（刷新后失效）。
 
 ## 需要修改的文件
-- `src/pages/Index.tsx`：
-  - 添加 SessionStorage 读取/写入/清除逻辑
-  - 支付弹窗底部添加安全区 padding
-- `src/pages/Index.tsx` 的 `prepareImageFile` 函数：
-  - 将 `canvas.toBlob()` 固定使用 `image/jpeg` 格式
+1. `supabase/functions/create-checkout-session/index.ts`：接受并传入 `paymentMethodType`
+2. `src/pages/Index.tsx`：
+   - `handleConfirmPayment`：传入 `selectedPaymentMethod`
+   - `prepareImageFile`：canvas.toBlob 固定 `image/jpeg`
+   - 添加 sessionStorage 持久化逻辑
+   - 支付弹窗添加安全区 padding
 
 ## 验证方式
-1. 在 iOS 设备上用相机拍照上传 → 应能正常处理 HEIC 图片
-2. 生成图片后点击下载 → 支付弹窗在 iPhone 底部显示正常，按钮不被遮挡
-3. 点击"去付款"后关闭 Stripe 页面返回 → 之前的生成记录应仍然可见
+- 选择支付宝后点"去付款"→ Stripe 页面应直接进入支付宝付款界面（需先在 Stripe 后台开启）
+- iOS 相机拍照上传 → 不再报错
+- 生成图片后点击下载跳转支付 → 返回后记录依然存在
