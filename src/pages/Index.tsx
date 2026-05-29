@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from "react";
-import { Camera, ImagePlus, Loader2, Download, RefreshCw, Sparkles, Globe, ChevronDown } from "lucide-react";
+import { Camera, ImagePlus, Loader2, Download, RefreshCw, Sparkles, Globe, ChevronDown, CreditCard, Smartphone, Wallet } from "lucide-react";
 import { useResourceUpload } from "@/hooks/useResourceUpload";
 import { useAIImage } from "@/hooks/useAIImage";
 import { Slider } from "@/components/ui/slider";
@@ -103,6 +103,9 @@ const Index = () => {
   const [historyImages, setHistoryImages] = useState<HistoryItem[]>([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+  const [showPaymentSheet, setShowPaymentSheet] = useState(false);
+  const [paymentUrl, setPaymentUrl] = useState("");
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"card" | "alipay" | "wechat">("card");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const lastResourcePathRef = useRef<string | null>(null);
@@ -246,7 +249,7 @@ const Index = () => {
       setIsPaymentLoading(true);
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: {
-          productId: 'prod_UbZspMg8kOssPb',
+          priceId: 'price_1TcMimEi2590jr7sdOmiIPRQ',
           successUrl: `${window.location.origin}/?success=true&url=${encodeURIComponent(resultImageUrl)}`,
           cancelUrl: `${window.location.origin}/?canceled=true`
         }
@@ -255,13 +258,20 @@ const Index = () => {
       if (error) throw error;
       
       if (data?.url) {
-        window.location.href = data.url;
+        setPaymentUrl(data.url);
+        setShowPaymentSheet(true);
       }
     } catch (error) {
       console.error("Payment failed:", error);
-      alert(t(locale, "generateFailed")); // Reusing error message for now
     } finally {
       setIsPaymentLoading(false);
+    }
+  };
+
+  const handleConfirmPayment = () => {
+    if (paymentUrl) {
+      window.open(paymentUrl, '_blank');
+      setShowPaymentSheet(false);
     }
   };
 
@@ -462,13 +472,83 @@ const Index = () => {
                 <RefreshCw className="w-4 h-4" />
                 {t(locale, "changePhoto")}
               </button>
-              <button onClick={handleDownload} disabled={isPaymentLoading} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] bg-foreground text-background font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity disabled:opacity-50">
+              <button onClick={handleDownload} disabled={isPaymentLoading} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] bg-foreground text-background font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity disabled:opacity-60">
                 {isPaymentLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Download className="w-4 h-4" />}
-                {isPaymentLoading ? t(locale, "uploading") : t(locale, "viewFull")}
+                {isPaymentLoading ? t(locale, "paymentRedirecting") : t(locale, "viewFull")}
               </button>
             </div>
           </div>}
       </main>
+
+      {/* Payment Sheet */}
+      {showPaymentSheet && (
+        <div className="fixed inset-0 z-50 flex items-end">
+          <div className="fixed inset-0 bg-black/40" onClick={() => setShowPaymentSheet(false)} />
+          <div className="relative w-full bg-background rounded-t-[16px] p-6 pb-8 space-y-5">
+            {/* Title */}
+            <h2 className="text-[18px] font-medium text-foreground tracking-[-0.5px]">
+              {t(locale, "paymentConfirmTitle")}
+            </h2>
+
+            {/* Order Summary */}
+            <div className="flex items-center justify-between py-3 border-t border-b border-border">
+              <div>
+                <p className="text-[14px] text-foreground tracking-[-0.28px]">{t(locale, "paymentItem")}</p>
+                <p className="text-[12px] text-muted-foreground mt-0.5">x1</p>
+              </div>
+              <p className="text-[16px] font-medium text-foreground">$0.50</p>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <p className="text-[14px] text-muted-foreground">{t(locale, "paymentTotal")}</p>
+              <p className="text-[18px] font-medium text-foreground">$0.50 USD</p>
+            </div>
+
+            {/* Payment Method */}
+            <div className="space-y-2">
+              <p className="text-[12px] text-muted-foreground tracking-[-0.28px]">{t(locale, "paymentMethodLabel")}</p>
+              <div className="grid grid-cols-3 gap-2">
+                {(["card", "alipay", "wechat"] as const).map((method) => (
+                  <button
+                    key={method}
+                    onClick={() => setSelectedPaymentMethod(method)}
+                    className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-[8px] border transition-all text-[12px] tracking-[-0.28px] ${
+                      selectedPaymentMethod === method
+                        ? "border-foreground text-foreground font-medium"
+                        : "border-border text-muted-foreground"
+                    }`}
+                  >
+                    <span className="text-[18px]">
+                      {method === "card" ? <CreditCard className="w-5 h-5" /> : method === "alipay" ? <Wallet className="w-5 h-5" /> : <Smartphone className="w-5 h-5" />}
+                    </span>
+                    {method === "card"
+                      ? t(locale, "paymentMethodCard")
+                      : method === "alipay"
+                      ? t(locale, "paymentMethodAlipay")
+                      : t(locale, "paymentMethodWechat")}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Buttons */}
+            <div className="flex gap-element pt-1">
+              <button
+                onClick={() => setShowPaymentSheet(false)}
+                className="flex-1 h-[48px] rounded-[8px] border border-foreground text-foreground font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity"
+              >
+                {t(locale, "paymentCancelBtn")}
+              </button>
+              <button
+                onClick={handleConfirmPayment}
+                className="flex-1 h-[48px] rounded-[8px] bg-foreground text-background font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity"
+              >
+                {t(locale, "paymentConfirmBtn")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>;
 };
 export default Index;
