@@ -1,6 +1,13 @@
 # 综合修复：支付方式传参 + 移动端适配 + 记录持久化 + HEIC 图片支持
 
-## 一、支付方式选择不生效的根因
+## 一、Stripe 后台配置指导（针对用户截图）
+
+用户在 Stripe 后台遇到了“选择您的结账”页面，不知道选哪个。
+**解答**：请选择第二个选项 **“预构建结账流程” (Pre-built checkout flow)**。
+- 我们的代码使用的是 `stripe.checkout.sessions.create`，这正是调用 Stripe 托管的预构建结账页面。
+- 选择这个选项后，你就可以进入设置页面，开启 Alipay（支付宝）和 WeChat Pay（微信支付）了。
+
+## 二、支付方式选择不生效的根因
 
 **当前问题**：弹窗中点击"支付宝"，跳转到 Stripe 后只显示信用卡。
 **根因**：我们的支付方式选择是纯 UI 展示，没有将用户的选择传给后端。Stripe 的 `create-checkout-session` 函数未指定 `payment_method_types`，Stripe 默认只展示信用卡。
@@ -10,18 +17,16 @@
 - Edge Function 在创建 Checkout Session 时加入 `payment_method_types` 参数。
 - 支付宝对应：`['alipay']`；微信支付：`['wechat_pay']`；信用卡：`['card']`
 
-**前置条件（需用户操作）**：必须先在 Stripe Dashboard → Settings → Payment methods 中手动开启 Alipay 和 WeChat Pay，否则创建会话时会报错。
-
-## 二、上传/生成失败根因（iOS HEIC 图片）
+## 三、上传/生成失败根因（iOS HEIC 图片）
 
 在 `prepareImageFile` 中，`canvas.toBlob(blob, file.type)` 使用了原始文件类型。iOS 相机拍摄的图片是 HEIC，浏览器不支持将 Canvas 编码成 HEIC，导致 `toBlob` 返回 `null`，进而回退到原始 HEIC 文件，最终被文件类型校验拒绝。
 **修复**：固定使用 `image/jpeg` 格式，并将文件名后缀改为 `.jpg`。
 
-## 三、移动端支付弹窗适配
+## 四、移动端支付弹窗适配
 
 在支付弹窗底部添加 iOS 安全区 padding（`env(safe-area-inset-bottom)`），防止按钮被 iPhone Home Indicator 遮挡。
 
-## 四、SessionStorage 持久化（防止支付返回后记录丢失）
+## 五、SessionStorage 持久化（防止支付返回后记录丢失）
 
 - 组件挂载时从 sessionStorage 读取并恢复 `historyImages`, `resultImageUrl`, `selectedIndex`, `lastResourcePath`, `imageRatio`, `headScale`, `appState`。
 - 每次生成成功后写入 sessionStorage。
