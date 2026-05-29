@@ -1,59 +1,43 @@
-# 优化支付流程：加载修复 + 按钮反馈 + 支付确认弹窗
+# 持久化图片记录（防止支付返回后记录丢失）
 
 ## 背景 (Context)
+在移动端，用户点击"去付款"后，Stripe 支付页面会在新的浏览器标签页或 WebView 中打开，支付完成返回时，部分浏览器（尤其是 iOS Safari 和微信内置浏览器）会**重新加载页面**，导致 React 内存状态（`useState`）全部清空，生成的图片记录消失。
 
-**1. 支付跳转加载慢的根因：**
-当前 `create-checkout-session` Edge Function 会顺序执行两次 Stripe API 调用：
-1. `stripe.prices.list({ product: productId })` — 通过 Product ID 查询对应的 Price ID
-2. `stripe.checkout.sessions.create(...)` — 创建支付会话
+## 根本原因
+所有状态（`historyImages`, `resultImageUrl`, `appState` 等）都存储在 React 的内存中（`useState`），页面重新加载时全部丢失。
 
-两次网络请求叠加，加上 Edge Function 的冷启动，导致整个过程需要 3-5 秒甚至更长。我们已经在创建商品时拿到了 `price_1TcMimEi2590jr7sdOmiIPRQ`，可以直接使用，完全不需要第一步的查询。
+## 解决方案：SessionStorage 持久化
 
-**2. 按钮没有视觉反馈：**
-点击后按钮文本没有立即变化（即使有 isPaymentLoading，但文本还是用了 `t(locale, "uploading")` 而不是明确的"正在跳转支付..."）
+使用 `sessionStorage` 在浏览器本地临时存储关键状态。
+- **为什么用 sessionStorage 而非 localStorage**：`sessionStorage` 在用户关闭标签页时自动清除，不会留下垃圾数据；同时在同一标签页内跳转返回后依然有效，完全符合我们的需求。
+- **需要持久化的状态**：
+  - `historyImages`（图片记录列表，包含 URL 和标签）
+  - `resultImageUrl`（当前展示的结果图片 URL）
+  - `selectedIndex`（当前选中的历史记录索引）
+  - `lastResourcePath`（用于重新生成）
+  - `imageRatio`（用于重新生成）
+  - `headScale`（放大倍数滑块状态）
+  - `appState`（当前的应用状态，用于恢复到 "done" 页面）
 
-**3. 交互流程优化（用户需求）：**
-加载完成后不直接跳转，而是先弹出支付确认弹窗，用户确认后再跳转。
+## 实施细节
 
-## 修复方案
+### 写入时机（Save）
+在每次状态发生变化时，将关键状态写入 sessionStorage：
+- 在 `processImage` 成功后写入。
+- 在每次 `generateWithScale` 成功后写入。
+- 在 `handleReset` 时清除 sessionStorage。
 
-### Step 1：优化 Edge Function（减少一次 Stripe API 调用）
-修改 `supabase/functions/create-checkout-session/index.ts`：
-- 接受 `priceId` 参数代替 `productId`
-- 直接用 `priceId` 创建 Checkout Session，去掉 `prices.list()` 调用
+### 读取时机（Restore）
+在 `Index` 组件挂载时（`useEffect([], [])` 的初始化 effect），从 sessionStorage 读取数据并恢复状态。
 
-### Step 2：前端优化（`src/pages/Index.tsx`）
-
-**按钮文本反馈：**
-- Loading 时文本改为 "正在跳转支付..."
-- 添加 i18n key（中文：正在跳转支付... / 英文：Redirecting to payment...）
-
-**新增支付确认弹窗（PaymentSheet）：**
-- 使用原生 fixed 定位实现 Bottom Sheet（不依赖 Shadcn Dialog，保持设计一致性）
-- 弹窗内容：
-  - 标题：确认支付
-  - 商品：大头特效图 x1
-  - 价格：$0.50 USD
-  - 支付方式展示区域（Stripe / 支付宝 / 微信支付 图标 + 文字）
-  - 主按钮："去付款" → `window.open(paymentUrl, '_blank')`
-  - 次按钮："取消" → 关闭弹窗
-
-**新增状态：**
-- `paymentUrl: string` — 存储 Stripe 支付链接
-- `showPaymentSheet: boolean` — 控制弹窗显示
-
-**重构 handleDownload 逻辑：**
-1. `setIsPaymentLoading(true)` — 按钮立即变为"正在跳转支付..."
-2. 调用 Edge Function（传 `priceId`）
-3. 拿到 URL 后：`setPaymentUrl(url)`, `setShowPaymentSheet(true)`, `setIsPaymentLoading(false)`
+### 注意事项
+- `historyImages` 中第一张原图（`originalPreviewRef`）的 URL 可能是 `blob://`（本地对象 URL），这类 URL 在页面刷新后会失效。需要在存储时只保留 AI 生成的结果图（非 blob URL 的图片），或者将原图也作为第一张历史记录的 URL 存储（因为原图也有可能是 OSS 上的真实 URL）。 **实际上**，当前代码中原图的 URL 是 `URL.createObjectURL()` 生成的，刷新后会失效。解决方案是：在恢复时，如果某张图片的 URL 是 blob 开头的，就跳过或用占位符替换。
 
 ## 需要修改的文件
-- `supabase/functions/create-checkout-session/index.ts`：接受 `priceId`，去掉 `prices.list()` 调用
-- `src/lib/i18n.ts`：添加"正在跳转支付..." 的 i18n key
-- `src/pages/Index.tsx`：重构 `handleDownload`，增加 PaymentSheet 组件
+- `src/pages/Index.tsx`：添加 sessionStorage 的读取（初始化）和写入（状态更新时）逻辑
 
 ## 验证方式
-- 点击下载 → 按钮文本立即变为"正在跳转支付..."（不超过 0.1 秒）
-- 1-2 秒后弹出支付确认弹窗
-- 点击"去付款" → 新标签页打开 Stripe 支付页面
-- 点击"取消" → 弹窗关闭，按钮恢复
+1. 上传图片并生成大头效果。
+2. 点击"下载图片" → 支付弹窗出现后，点击"去付款"跳转到 Stripe。
+3. 关闭 Stripe 页面，返回到应用页面（此时页面会重新加载）。
+4. 应能看到之前生成的图片记录依然存在，应用处于 "done" 状态。
