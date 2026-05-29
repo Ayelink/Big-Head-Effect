@@ -81,12 +81,14 @@ async function prepareImageFile(file: File): Promise<{ file: File, ratio: string
       
       canvas.toBlob((blob) => {
         if (blob) {
-          const croppedFile = new File([blob], file.name, { type: file.type });
+          // Force jpeg format to avoid HEIC encoding issues on iOS
+          const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+          const croppedFile = new File([blob], newFileName, { type: "image/jpeg" });
           resolve({ file: croppedFile, ratio: closestRatio.name, originalUrl: URL.createObjectURL(croppedFile) });
         } else {
           resolve({ file, ratio: closestRatio.name, originalUrl });
         }
-      }, file.type);
+      }, "image/jpeg", 0.9);
     };
     img.onerror = () => reject(new Error("Failed to load image"));
     img.src = originalUrl;
@@ -165,6 +167,50 @@ const Index = () => {
       setErrorMsg(t(locale, "generateFailed"));
     }
   }, [aiError, appState, locale, errorMsg]);
+  // Restore state from sessionStorage on mount
+  useEffect(() => {
+    try {
+      const savedState = sessionStorage.getItem('bighead_state');
+      if (savedState) {
+        const parsed = JSON.parse(savedState);
+        if (parsed.appState === 'done' && parsed.historyImages?.length > 0) {
+          // Filter out blob URLs as they are invalid after reload
+          const validHistory = parsed.historyImages.filter((item: HistoryItem) => !item.url.startsWith('blob:'));
+          
+          if (validHistory.length > 0) {
+            setHistoryImages(validHistory);
+            // Adjust selected index if needed
+            const newIndex = Math.min(parsed.selectedIndex || 0, validHistory.length - 1);
+            setSelectedIndex(newIndex);
+            setResultImageUrl(validHistory[newIndex].url);
+            
+            setAppState('done');
+            if (parsed.lastResourcePath) lastResourcePathRef.current = parsed.lastResourcePath;
+            if (parsed.imageRatio) imageRatioRef.current = parsed.imageRatio;
+            if (parsed.headScale) setHeadScale(parsed.headScale);
+          }
+        }
+      }
+    } catch (e) {
+      console.error("Failed to restore state", e);
+    }
+  }, []);
+
+  // Save state to sessionStorage whenever it changes
+  useEffect(() => {
+    if (appState === 'done' && historyImages.length > 0) {
+      const stateToSave = {
+        appState,
+        historyImages,
+        selectedIndex,
+        lastResourcePath: lastResourcePathRef.current,
+        imageRatio: imageRatioRef.current,
+        headScale
+      };
+      sessionStorage.setItem('bighead_state', JSON.stringify(stateToSave));
+    }
+  }, [appState, historyImages, selectedIndex, headScale]);
+
   const processImage = useCallback(async (file: File) => {
     setAppState("uploading");
     setErrorMsg("");
@@ -232,6 +278,7 @@ const Index = () => {
     originalPreviewRef.current = null;
     resetUpload();
     clearImages();
+    sessionStorage.removeItem('bighead_state');
   };
   const handleSelectHistory = (index: number) => {
     setSelectedIndex(index);
@@ -251,7 +298,8 @@ const Index = () => {
         body: {
           priceId: 'price_1TcMimEi2590jr7sdOmiIPRQ',
           successUrl: `${window.location.origin}/?success=true&url=${encodeURIComponent(resultImageUrl)}`,
-          cancelUrl: `${window.location.origin}/?canceled=true`
+          cancelUrl: `${window.location.origin}/?canceled=true`,
+          paymentMethodType: selectedPaymentMethod
         }
       });
       
@@ -483,8 +531,8 @@ const Index = () => {
       {/* Payment Sheet */}
       {showPaymentSheet && (
         <div className="fixed inset-0 z-50 flex items-end">
-          <div className="fixed inset-0 bg-black/40" onClick={() => setShowPaymentSheet(false)} />
-          <div className="relative w-full bg-background rounded-t-[16px] p-6 pb-8 space-y-5">
+          <div className="fixed inset-0 bg-black/40 transition-opacity" onClick={() => setShowPaymentSheet(false)} />
+          <div className="relative w-full bg-background rounded-t-[16px] p-6 pb-safe space-y-5 animate-in slide-in-from-bottom-full duration-200">
             {/* Title */}
             <h2 className="text-[18px] font-medium text-foreground tracking-[-0.5px]">
               {t(locale, "paymentConfirmTitle")}
