@@ -5,6 +5,7 @@ import { useAIImage } from "@/hooks/useAIImage";
 import { Slider } from "@/components/ui/slider";
 import { type Locale, t } from "@/lib/i18n";
 import { trackEvent } from "@enter-pro/analytics-sdk";
+import { supabase } from "@/integrations/supabase/client";
 type AppState = "idle" | "uploading" | "generating" | "done" | "error";
 interface HistoryItem {
   url: string;
@@ -232,6 +233,70 @@ const Index = () => {
     setSelectedIndex(index);
     setResultImageUrl(historyImages[index].url);
   };
+  const handleDownload = async () => {
+    trackEvent("button_click", {
+      eventType: "custom",
+      properties: { action_type: "download_click" }
+    });
+    
+    if (!resultImageUrl) return;
+    
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout-session', {
+        body: {
+          productId: 'prod_UbZspMg8kOssPb',
+          successUrl: `${window.location.origin}/?success=true&url=${encodeURIComponent(resultImageUrl)}`,
+          cancelUrl: `${window.location.origin}/?canceled=true`
+        }
+      });
+      
+      if (error) throw error;
+      
+      if (data?.url) {
+        window.location.href = data.url;
+      }
+    } catch (error) {
+      console.error("Payment failed:", error);
+      alert(t(locale, "generateFailed")); // Reusing error message for now
+    }
+  };
+
+  // Handle payment success callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('success') === 'true') {
+      const urlToDownload = params.get('url');
+      if (urlToDownload) {
+        // Execute actual download
+        const downloadImage = async () => {
+          try {
+            const response = await fetch(decodeURIComponent(urlToDownload));
+            const blob = await response.blob();
+            const blobUrl = URL.createObjectURL(blob);
+            
+            const link = document.createElement('a');
+            link.href = blobUrl;
+            link.download = `bighead-${Date.now()}.png`;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            URL.revokeObjectURL(blobUrl);
+          } catch (error) {
+            console.error("Download failed:", error);
+            window.open(decodeURIComponent(urlToDownload), '_blank');
+          }
+        };
+        downloadImage();
+      }
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    } else if (params.get('canceled') === 'true') {
+      // Clean up URL
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
+  }, []);
+
   const toggleLang = (l: Locale) => {
     trackEvent("button_click", {
       eventType: "custom",
@@ -393,12 +458,10 @@ const Index = () => {
                 <RefreshCw className="w-4 h-4" />
                 {t(locale, "changePhoto")}
               </button>
-              <a href={resultImageUrl} target="_blank" rel="noopener noreferrer" onClick={() => {
-                trackEvent("button_click", { eventType: "custom", properties: { action_type: "download_click" } });
-              }} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] bg-foreground text-background font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
+              <button onClick={handleDownload} className="flex-1 flex items-center justify-center gap-2 h-[48px] rounded-[8px] bg-foreground text-background font-medium text-[14px] tracking-[-0.28px] active:opacity-70 transition-opacity">
                 <Download className="w-4 h-4" />
                 {t(locale, "viewFull")}
-              </a>
+              </button>
             </div>
           </div>}
       </main>
