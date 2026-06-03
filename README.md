@@ -21,29 +21,28 @@ A mobile-first web application that applies a "Big Head Small Body" caricature e
 - **Payments**: Stripe Checkout
 - **Analytics**: Enter Analytics SDK
 
-## Local Development
+## How to Run & Deploy
+
+This project relies on **Enter Cloud (Supabase Edge Functions)** and **Enter AI API** for its core functionality (AI image generation and Stripe payments). Therefore, it cannot be run purely locally just by installing npm dependencies.
+
+### The Recommended Way: Enter.pro
+
+The easiest and only fully supported way to run, edit, and deploy this project is through the Enter.pro platform:
+
+1. Open this project in your Enter workspace.
+2. The platform automatically provisions the necessary Edge Functions, AI API tokens, and database connections.
+3. Click **"Publish"** in the top right corner to deploy the frontend and backend simultaneously.
+
+### Local Development (Frontend Only)
+
+If you wish to run the frontend locally for UI adjustments:
 
 ```bash
-# Step 1: Clone the repository
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate into the project folder
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install dependencies
+# Install dependencies
 npm install
 
-# Step 4: Start the development server
+# Start the development server
 npm run dev
 ```
 
-## Environment Variables
-
-To run this project locally with full functionality, you need to configure the following environment variables in your Supabase Edge Functions:
-
-- `STRIPE_SECRET_KEY`: Your Stripe secret key for processing payments.
-- `AI_API_TOKEN`: Token for accessing the Enter AI API.
-
-## Deployment
-
-This project is designed to be deployed via Enter.pro. Simply click "Publish" in your Enter workspace to deploy the frontend and Edge Functions automatically.
+*Note: When running locally, AI generation and Stripe payment features will fail unless you manually configure a local Supabase instance, deploy the Edge Functions, and provide valid `STRIPE_SECRET_KEY` and `AI_API_TOKEN` environment variables.*
