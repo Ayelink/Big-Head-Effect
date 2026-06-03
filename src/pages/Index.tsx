@@ -481,13 +481,29 @@ const Index = () => {
               {/* Left: History thumbnails */}
               <div className="flex-shrink-0 w-14 flex flex-col gap-2 overflow-y-auto">
                 {historyImages.map((item, idx) => <button key={idx} onClick={() => handleSelectHistory(idx)} className={`w-14 aspect-[3/4] flex-shrink-0 overflow-hidden border transition-all ${idx === selectedIndex ? "border-foreground" : "border-border opacity-60"}`}>
-                    <img src={item.url} alt={item.label} crossOrigin="anonymous" className="w-full h-full object-cover" />
+                    <img 
+                      src={item.url} 
+                      alt={item.label} 
+                      crossOrigin="anonymous" 
+                      className="w-full h-full object-cover select-none pointer-events-none" 
+                      onContextMenu={(e) => e.preventDefault()}
+                      draggable={false}
+                      style={{ WebkitTouchCallout: 'none' }}
+                    />
                   </button>)}
               </div>
 
               {/* Right: Main preview */}
               <div className="flex-1 flex items-start justify-center overflow-hidden min-h-0">
-                <img src={resultImageUrl} alt="result" crossOrigin="anonymous" className="max-w-full max-h-[45vh] object-contain" />
+                <img 
+                  src={resultImageUrl} 
+                  alt="result" 
+                  crossOrigin="anonymous" 
+                  className="max-w-full max-h-[45vh] object-contain select-none pointer-events-none" 
+                  onContextMenu={(e) => e.preventDefault()}
+                  draggable={false}
+                  style={{ WebkitTouchCallout: 'none' }}
+                />
               </div>
             </div>
 
