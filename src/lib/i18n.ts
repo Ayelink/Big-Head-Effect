@@ -50,7 +50,7 @@ export const translations = {
     uploadFailed: "Upload failed, please try again",
     generateFailed: "Generation failed, please try another photo",
     noFace: "No face detected, please use a front-facing photo",
-    paymentRedirecting: "Redirecting to payment...",
+    paymentRedirecting: "Loading...",
     paymentConfirmTitle: "Confirm Payment",
     paymentItem: "Big Head Effect Image",
     paymentTotal: "Total",

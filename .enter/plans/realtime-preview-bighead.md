@@ -20,12 +20,14 @@
 
 *注意：如果你在测试模式（Test mode）下，可以直接开启。如果是真实模式（Live mode），开启微信支付可能需要填写额外的审核资料。*
 
-## 三、代码层面的支付方式传参
+## 三、代码层面的支付方式传参与 UI 简化
 
-为了确保前端选择的支付方式能正确传递给 Stripe，我会在代码中做如下修改：
-- 前端将选中的支付方式（`card` / `alipay` / `wechat_pay`）传入 Edge Function。
-- Edge Function 在创建 Checkout Session 时加入 `payment_method_types` 参数。
-- 支付宝对应：`['alipay']`；微信支付：`['wechat_pay']`；信用卡：`['card']`
+根据你的反馈，微信支付跳转有问题，且你希望考虑把所有支付方式从结算页面去掉。
+**修改方案：**
+1. **前端 UI 简化**：从 Payment Sheet 中移除选择支付方式（信用卡/支付宝/微信）的按钮。只保留订单金额和“去付款”按钮。
+2. **Edge Function 简化**：不再从前端接收 `paymentMethodType`，也不再向 Stripe 传递 `payment_method_types`。
+   - **为什么这样做更好？** 当不传递 `payment_method_types` 时，Stripe Checkout 会自动根据你在 Stripe Dashboard 中开启的支付方式（如支付宝、微信、信用卡等）来展示选项。这样你只需要在 Stripe 后台管理支付方式，前端完全不需要改代码。
+3. **按钮文案优化**：将英文的 "Redirecting to payment..." 改为更短的 "Loading..."，防止按钮文字过长换行。
 
 ## 四、上传/生成失败根因（iOS HEIC 图片）
 
@@ -44,15 +46,16 @@
 - 过滤掉 `blob://` 开头的 URL（刷新后失效）。
 
 ## 需要修改的文件
-1. `supabase/functions/create-checkout-session/index.ts`：接受并传入 `paymentMethodType`
-2. `src/pages/Index.tsx`：
+1. `src/lib/i18n.ts`：修改 `paymentRedirecting` 英文文案为 "Loading..."。
+2. `supabase/functions/create-checkout-session/index.ts`：移除 `paymentMethodType` 逻辑，让 Stripe 自动接管支付方式。
+3. `src/pages/Index.tsx`：
    - 添加 `ENABLE_PAYMENT` 常量开关
    - 修改 `handleDownload` 逻辑，根据开关决定是直接下载还是弹支付窗
-   - `handleConfirmPayment`：传入 `selectedPaymentMethod`
+   - 移除 `selectedPaymentMethod` 状态和相关的 UI 渲染
    - `prepareImageFile`：canvas.toBlob 固定 `image/jpeg`
    - 添加 sessionStorage 持久化逻辑
    - 支付弹窗添加安全区 padding
 
 ## 验证方式
 - 修改 `ENABLE_PAYMENT = false`，点击下载直接保存图片。
-- 修改 `ENABLE_PAYMENT = true`，点击下载弹出支付窗口。
+- 修改 `ENABLE_PAYMENT = true`，点击下载弹出支付窗口，点击“去付款”后，Stripe 页面会自动展示你在后台开启的所有支付方式。
