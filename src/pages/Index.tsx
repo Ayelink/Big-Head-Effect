@@ -96,7 +96,7 @@ async function prepareImageFile(file: File): Promise<{ file: File, ratio: string
 }
 
 const Index = () => {
-  const [locale, setLocale] = useState<Locale>("zh");
+  const [locale, setLocale] = useState<Locale>("en");
   const [langOpen, setLangOpen] = useState(false);
   const [appState, setAppState] = useState<AppState>("idle");
   const [errorMsg, setErrorMsg] = useState("");
