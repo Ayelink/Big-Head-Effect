@@ -1,76 +1,49 @@
-# Welcome to your Enter project
+# Big Head Avatar Generator
 
-[![Built with enter.pro](https://img.shields.io/badge/Build%20with-Enter.pro-FC5776?style=for-the-badge&labelColor=1F1F1F)](https://enter.pro)
+A mobile-first web application that applies a "Big Head Small Body" caricature effect to uploaded photos using Generative AI.
 
-*Automatically synced with your [enter.pro](https://enter.pro) workspace* 
+## Features
 
----
+- **AI-Powered Caricature**: Uses `google/gemini-3.1-flash-image-preview` to intelligently enlarge the subject's head while maintaining the original image ratio.
+- **Adjustable Scale**: Interactive slider to adjust the head enlargement ratio from 1.0x to 4.0x.
+- **Mobile-First Design**: Responsive UI optimized for mobile devices with a minimalist "Spécialiste Belge" aesthetic.
+- **History Tracking**: Automatically saves generated images in a vertical history list for easy comparison.
+- **State Persistence**: Uses `sessionStorage` to maintain user state and history across page reloads.
+- **Monetization Ready**: Integrated with Stripe Checkout for paid downloads, supporting Credit Cards, Alipay, and WeChat Pay.
+- **Anti-Scraping**: Built-in protections against right-click saving, long-press saving, and image dragging.
+- **Analytics**: Instrumented with Enter Analytics SDK to track user engagement and conversion metrics.
 
-## Overview
+## Tech Stack
 
-This repository is automatically linked to your app on [enter.pro](https://enter.pro).  
-Every change you make in Enter will be reflected here — and any updates you push to this repo will sync back seamlessly.  
+- **Frontend**: React, TypeScript, Vite, Tailwind CSS, shadcn/ui
+- **Backend**: Supabase Edge Functions (Deno)
+- **AI Integration**: Enter AI API (img_2_img)
+- **Payments**: Stripe Checkout
+- **Analytics**: Enter Analytics SDK
 
-Enter.pro helps you **build, edit, and deploy full-stack web apps by prompting**.  
-Just describe what you want — Enter turns ideas into production-ready code.
-
----
-
-## Project URLs
-
-**Live app:** https://<project-id>-latest.preview.enter.pro  
-**Edit & build in Enter:** https://enter.pro/project/<project-id>
-
-
----
-
-## Continue building
-
-Keep developing your app directly in [Enter.pro](https://enter.pro/project/<project-id>).  
-Prompt new features, refine the UI, or connect integrations — all changes are versioned and synced automatically to GitHub.
-
----
-
-## Local development
-
-Prefer to work locally? You can clone this repo and start developing right away:
+## Local Development
 
 ```bash
-# Step 1: Clone your project repository
+# Step 1: Clone the repository
 git clone <YOUR_GIT_URL>
 
 # Step 2: Navigate into the project folder
 cd <YOUR_PROJECT_NAME>
 
-# Step 3: Install all dependencies
+# Step 3: Install dependencies
 npm install
 
-# Step 4: Start the local development server
+# Step 4: Start the development server
 npm run dev
 ```
 
-Push your commits — Enter.pro will automatically detect and sync your latest changes.
+## Environment Variables
 
----
+To run this project locally with full functionality, you need to configure the following environment variables in your Supabase Edge Functions:
 
-## Tech stack
-
-This project uses:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
----
+- `STRIPE_SECRET_KEY`: Your Stripe secret key for processing payments.
+- `AI_API_TOKEN`: Token for accessing the Enter AI API.
 
 ## Deployment
 
-To deploy, open your Enter.pro project and click "Publish"
-
-Your app will automatically build and go live at your production URL.
-
----
-
-✨ Keep prompting, keep building — Enter.pro handles the rest.
+This project is designed to be deployed via Enter.pro. Simply click "Publish" in your Enter workspace to deploy the frontend and Edge Functions automatically.
