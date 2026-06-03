@@ -95,7 +95,7 @@ async function prepareImageFile(file: File): Promise<{ file: File, ratio: string
   });
 }
 
-const ENABLE_PAYMENT = true;
+const ENABLE_PAYMENT = false;
 
 const Index = () => {
   const [locale, setLocale] = useState<Locale>("en");
