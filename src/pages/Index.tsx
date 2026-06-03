@@ -95,6 +95,8 @@ async function prepareImageFile(file: File): Promise<{ file: File, ratio: string
   });
 }
 
+const ENABLE_PAYMENT = true;
+
 const Index = () => {
   const [locale, setLocale] = useState<Locale>("en");
   const [langOpen, setLangOpen] = useState(false);
@@ -107,7 +109,6 @@ const Index = () => {
   const [isPaymentLoading, setIsPaymentLoading] = useState(false);
   const [showPaymentSheet, setShowPaymentSheet] = useState(false);
   const [paymentUrl, setPaymentUrl] = useState("");
-  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<"card" | "alipay" | "wechat">("card");
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
   const lastResourcePathRef = useRef<string | null>(null);
@@ -292,14 +293,35 @@ const Index = () => {
     
     if (!resultImageUrl) return;
     
+    if (!ENABLE_PAYMENT) {
+      // Direct download logic when payment is disabled
+      try {
+        const response = await fetch(resultImageUrl);
+        const blob = await response.blob();
+        const blobUrl = URL.createObjectURL(blob);
+        
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        link.download = `bighead-${Date.now()}.png`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        
+        URL.revokeObjectURL(blobUrl);
+      } catch (error) {
+        console.error("Direct download failed:", error);
+        window.open(resultImageUrl, '_blank');
+      }
+      return;
+    }
+    
     try {
       setIsPaymentLoading(true);
       const { data, error } = await supabase.functions.invoke('create-checkout-session', {
         body: {
           priceId: 'price_1TcMimEi2590jr7sdOmiIPRQ',
           successUrl: `${window.location.origin}/?success=true&url=${encodeURIComponent(resultImageUrl)}`,
-          cancelUrl: `${window.location.origin}/?canceled=true`,
-          paymentMethodType: selectedPaymentMethod
+          cancelUrl: `${window.location.origin}/?canceled=true`
         }
       });
       
@@ -566,33 +588,6 @@ const Index = () => {
             <div className="flex items-center justify-between">
               <p className="text-[14px] text-muted-foreground">{t(locale, "paymentTotal")}</p>
               <p className="text-[18px] font-medium text-foreground">$0.50 USD</p>
-            </div>
-
-            {/* Payment Method */}
-            <div className="space-y-2">
-              <p className="text-[12px] text-muted-foreground tracking-[-0.28px]">{t(locale, "paymentMethodLabel")}</p>
-              <div className="grid grid-cols-3 gap-2">
-                {(["card", "alipay", "wechat"] as const).map((method) => (
-                  <button
-                    key={method}
-                    onClick={() => setSelectedPaymentMethod(method)}
-                    className={`flex flex-col items-center justify-center gap-1.5 py-3 rounded-[8px] border transition-all text-[12px] tracking-[-0.28px] ${
-                      selectedPaymentMethod === method
-                        ? "border-foreground text-foreground font-medium"
-                        : "border-border text-muted-foreground"
-                    }`}
-                  >
-                    <span className="text-[18px]">
-                      {method === "card" ? <CreditCard className="w-5 h-5" /> : method === "alipay" ? <Wallet className="w-5 h-5" /> : <Smartphone className="w-5 h-5" />}
-                    </span>
-                    {method === "card"
-                      ? t(locale, "paymentMethodCard")
-                      : method === "alipay"
-                      ? t(locale, "paymentMethodAlipay")
-                      : t(locale, "paymentMethodWechat")}
-                  </button>
-                ))}
-              </div>
             </div>
 
             {/* Buttons */}
