@@ -25,9 +25,8 @@ const STANDARD_RATIOS = [
   { name: "9:16", value: 9 / 16 },
   { name: "4:3", value: 4 / 3 },
   { name: "3:4", value: 3 / 4 },
-  { name: "3:2", value: 3 / 2 },
-  { name: "2:3", value: 2 / 3 },
   { name: "1:1", value: 1 },
+  { name: "21:9", value: 21 / 9 },
 ];
 
 async function prepareImageFile(file: File): Promise<{ file: File, ratio: string, originalUrl: string }> {
