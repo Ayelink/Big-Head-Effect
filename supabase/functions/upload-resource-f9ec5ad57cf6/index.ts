@@ -47,6 +47,7 @@ Deno.serve(async (req) => {
   try {
     const EDGE_FUNCTION_TOKEN = Deno.env.get("EDGE_FUNCTION_TOKEN_f9ec5ad57cf6");
     if (!EDGE_FUNCTION_TOKEN) {
+      console.error("[Upload Error] EDGE_FUNCTION_TOKEN_f9ec5ad57cf6 is not set");
       return errorResponse(500, "上传服务未配置", "configuration_error");
     }
 
@@ -91,6 +92,7 @@ Deno.serve(async (req) => {
         });
       }
 
+      console.error(`[Upload Error] API returned error: ${response.status} ${JSON.stringify(apiResponse)}`);
       return errorResponse(
         response.status,
         apiResponse.message || "获取上传地址失败",
@@ -100,6 +102,7 @@ Deno.serve(async (req) => {
 
     return errorResponse(404, "Not found", "not_found");
   } catch (error) {
+    console.error(`[Upload Error] Internal error: ${error.message}`);
     return errorResponse(500, error.message || "内部错误", "internal_error");
   }
 });

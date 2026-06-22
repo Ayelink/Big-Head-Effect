@@ -82,7 +82,8 @@ async function prepareImageFile(file: File): Promise<{ file: File, ratio: string
       canvas.toBlob((blob) => {
         if (blob) {
           // Force jpeg format to avoid HEIC encoding issues on iOS
-          const newFileName = file.name.replace(/\.[^/.]+$/, "") + ".jpg";
+          const baseName = file.name ? file.name.replace(/\.[^/.]+$/, "") : `image-${Date.now()}`;
+          const newFileName = baseName + ".jpg";
           const croppedFile = new File([blob], newFileName, { type: "image/jpeg" });
           resolve({ file: croppedFile, ratio: closestRatio.name, originalUrl: URL.createObjectURL(croppedFile) });
         } else {
@@ -125,14 +126,14 @@ const Index = () => {
     clearImages,
     error: aiError
   } = useAIImage();
-  const generateWithScale = useCallback(async (resourcePath: string, scale: number) => {
+  const generateWithScale = useCallback(async (resourceUrl: string, scale: number) => {
     setAppState("generating");
     setResultImageUrl("");
     const result = await submitAndPoll({
       model: "google/gemini-3.1-flash-image-preview",
       prompt: buildPrompt(scale),
       type: "img_2_img",
-      resource_path: resourcePath,
+      resource_url: resourceUrl,
       ratio: imageRatioRef.current,
       resolution: "1k",
       format: "png"

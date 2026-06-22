@@ -1,10 +1,12 @@
 import { useState, useCallback, useRef } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { FunctionsHttpError } from "@supabase/supabase-js";
+
+const AI_ALL_IMAGE_BUCKET = "images";
 
 const UPLOAD_CONFIG = {
   maxFileSizeMB: 10,
   allowedExtensions: ["jpg", "jpeg", "png", "gif", "webp"],
+  allowedMimeTypes: ["image/jpeg", "image/png", "image/webp", "image/gif"],
 };
 
 interface UploadState {
@@ -13,6 +15,12 @@ interface UploadState {
   error: string | null;
   resourcePath: string | null;
   previewUrl: string | null;
+}
+
+function extensionFromFile(file: File): string {
+  const extension = file.name.split(".").pop()?.toLowerCase();
+  if (extension === "jpeg") return "jpg";
+  return extension || "png";
 }
 
 export function useResourceUpload() {
@@ -30,9 +38,12 @@ export function useResourceUpload() {
     if (file.size > maxSizeBytes) {
       return `文件过大，最大允许 ${UPLOAD_CONFIG.maxFileSizeMB}MB`;
     }
-    const ext = file.name.split(".").pop()?.toLowerCase();
-    if (!ext || !UPLOAD_CONFIG.allowedExtensions.includes(ext)) {
+    const ext = extensionFromFile(file);
+    if (!UPLOAD_CONFIG.allowedExtensions.includes(ext)) {
       return `不支持的文件类型，允许：${UPLOAD_CONFIG.allowedExtensions.join(", ")}`;
+    }
+    if (file.type && !UPLOAD_CONFIG.allowedMimeTypes.includes(file.type)) {
+      return "不支持的图片 MIME 类型";
     }
     return null;
   }, []);
@@ -54,45 +65,33 @@ export function useResourceUpload() {
         throw new Error(validationError);
       }
 
-      setState(prev => ({ ...prev, progress: 10 }));
-
-      const { data, error: invokeError } = await supabase.functions.invoke<{
-        success: boolean;
-        upload_url?: string;
-        resource_path?: string;
-        message?: string;
-        code?: string;
-      }>("upload-resource-f9ec5ad57cf6", {
-        body: { file_name: file.name, file_size: file.size },
-      });
-
-      if (invokeError) {
-        if (invokeError instanceof FunctionsHttpError) {
-          const errorBody = await invokeError.context.json();
-          throw new Error(errorBody.message || "获取上传地址失败");
-        }
-        throw new Error(invokeError.message || "请求失败");
-      }
-
-      if (!data?.success || !data.upload_url || !data.resource_path) {
-        throw new Error(data?.message || "获取上传地址失败");
-      }
-
       setState(prev => ({ ...prev, progress: 30 }));
 
-      const uploadResponse = await fetch(data.upload_url, {
-        method: "PUT",
-        headers: { "Content-Type": "application/octet-stream" },
-        body: file,
-      });
+      const ext = extensionFromFile(file);
+      const path = `ai-all/${crypto.randomUUID()}.${ext}`;
 
-      if (!uploadResponse.ok) {
-        throw new Error("文件上传失败");
+      const { error: uploadError } = await supabase.storage
+        .from(AI_ALL_IMAGE_BUCKET)
+        .upload(path, file, {
+          contentType: file.type || "image/png",
+          upsert: false,
+        });
+
+      if (uploadError) {
+        throw uploadError;
       }
 
-      setState(prev => ({ ...prev, progress: 100, resourcePath: data.resource_path! }));
-      return data.resource_path;
+      setState(prev => ({ ...prev, progress: 80 }));
+
+      const { data } = supabase.storage.from(AI_ALL_IMAGE_BUCKET).getPublicUrl(path);
+      if (!data.publicUrl) {
+        throw new Error("获取图片公开链接失败");
+      }
+
+      setState(prev => ({ ...prev, progress: 100, resourcePath: data.publicUrl }));
+      return data.publicUrl;
     } catch (err) {
+      console.error("[Upload] Caught error:", err);
       const errorMessage = err instanceof Error ? err.message : "上传失败";
       setState(prev => ({ ...prev, error: errorMessage }));
       return null;

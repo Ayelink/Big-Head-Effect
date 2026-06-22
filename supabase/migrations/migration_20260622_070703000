@@ -1,0 +1,58 @@
+insert into storage.buckets (
+  id,
+  name,
+  public,
+  file_size_limit,
+  allowed_mime_types
+)
+values (
+  'images',
+  'images',
+  true,
+  10 * 1024 * 1024,
+  array[
+    'image/jpeg', 'image/png', 'image/webp', 'image/gif',
+    'video/mp4', 'video/webm',
+    'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/webm'
+  ]::text[]
+)
+on conflict (id) do nothing;
+
+do $$
+begin
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'ai_all_media_read_images'
+  ) then
+    execute $policy$
+    create policy "ai_all_media_read_images"
+    on storage.objects
+    for select
+    to public
+    using (
+      bucket_id = 'images'
+      and name like 'ai-all/%'
+    )
+    $policy$;
+  end if;
+
+  if not exists (
+    select 1 from pg_policies
+    where schemaname = 'storage'
+      and tablename = 'objects'
+      and policyname = 'ai_all_media_upload_images'
+  ) then
+    execute $policy$
+    create policy "ai_all_media_upload_images"
+    on storage.objects
+    for insert
+    to anon
+    with check (
+      bucket_id = 'images'
+      and name like 'ai-all/%'
+    )
+    $policy$;
+  end if;
+end $$;

@@ -17,6 +17,8 @@ interface GenerateOptions {
   type?: "txt_2_img" | "img_2_img";
   resource_path?: string;
   refer_image_resource_paths?: string[];
+  resource_url?: string;
+  refer_image_urls?: string[];
   ratio?: string;
   resolution?: string;
   format?: string;
@@ -101,6 +103,8 @@ export function useAIImage() {
               type: options.type ?? "txt_2_img",
               resource_path: options.resource_path,
               refer_image_resource_paths: options.refer_image_resource_paths,
+              resource_url: options.resource_url,
+              refer_image_urls: options.refer_image_urls,
               image_option,
             },
           }

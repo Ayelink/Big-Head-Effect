@@ -9,6 +9,8 @@ interface SubmitImageRequest {
   type?: "txt_2_img" | "img_2_img";
   resource_path?: string;
   refer_image_resource_paths?: string[];
+  resource_url?: string;
+  refer_image_urls?: string[];
   image_option?: {
     ratio?: string;
     resolution?: string;
@@ -56,10 +58,10 @@ Deno.serve(async (req) => {
         code: "invalid_request_error",
       });
     }
-    if (type === "img_2_img" && !body.resource_path) {
+    if (type === "img_2_img" && !body.resource_path && !body.resource_url) {
       return jsonResponse(400, {
         success: false,
-        message: "resource_path is required for img_2_img",
+        message: "resource_path or resource_url is required for img_2_img",
         code: "invalid_request_error",
       });
     }
@@ -72,9 +74,16 @@ Deno.serve(async (req) => {
     };
 
     if (type === "img_2_img") {
-      requestBody.resource_path = body.resource_path;
-      if ((body.refer_image_resource_paths ?? []).length > 0) {
-        requestBody.refer_image_resource_paths = body.refer_image_resource_paths;
+      if (body.resource_url) {
+        requestBody.resource_url = body.resource_url;
+        if ((body.refer_image_urls ?? []).length > 0) {
+          requestBody.refer_image_urls = body.refer_image_urls;
+        }
+      } else if (body.resource_path) {
+        requestBody.resource_path = body.resource_path;
+        if ((body.refer_image_resource_paths ?? []).length > 0) {
+          requestBody.refer_image_resource_paths = body.refer_image_resource_paths;
+        }
       }
     }
 
